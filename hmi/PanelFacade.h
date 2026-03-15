@@ -43,6 +43,7 @@ class PanelFacade : public QObject
     Q_PROPERTY(double testPValue READ testPValue NOTIFY changed)
     Q_PROPERTY(double testUValue READ testUValue NOTIFY changed)
     Q_PROPERTY(double testIValue READ testIValue NOTIFY changed)
+    Q_PROPERTY(bool temperatureAvailable READ temperatureAvailable NOTIFY changed)
 
 public:
     explicit PanelFacade(QObject *parent = nullptr);
@@ -61,6 +62,7 @@ public:
     bool batteryFault() const;
     bool onBattery() const;
     bool charging() const;
+    bool temperatureAvailable() const;
 
     int systemState() const;
     int lineCount() const;

@@ -129,6 +129,11 @@ QVariantList PanelFacade::lines() const
     return result;
 }
 
+bool PanelFacade::temperatureAvailable() const
+{
+    return state().contains("temperature") && state().value("temperature").isDouble();
+}
+
 double PanelFacade::inletPValue() const
 {
     return state().value("inletP").toDouble(0.0);

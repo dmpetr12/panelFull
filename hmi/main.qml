@@ -289,7 +289,7 @@ Window {
             }
 
             Text {
-                text: panel.busConnected ? panel.temperatureValue.toFixed(0) + " °C" : "—"
+                text: (panel.busConnected && panel.temperatureAvailable) ? panel.temperatureValue.toFixed(0) + " °C" : "—"
                 font.pixelSize: 40
                 Layout.margins: 55
                 Layout.alignment: Qt.AlignVCenter | Qt.AlignTop
