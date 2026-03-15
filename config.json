@@ -1,0 +1,40 @@
+{
+  "timeAuto": 1,
+  "timeTest": 2,
+  "numLines": 25,
+  "maxRelayModules": 4,
+  "serialPort": "CH340",
+
+  "modbusRtu": {
+    "enabled": false,
+    "device": "/dev/ttyS2",
+    "baudRate": 9600,
+    "parity": "E",
+    "dataBits": 8,
+    "stopBits": 1,
+    "slaveId": 10
+  },
+
+  "modbusTcp": {
+    "enabled": false,
+    "bind": "0.0.0.0",
+    "port": 502
+  },
+
+  "opcUa": {
+    "enabled": false,
+    "endpoint": "opc.tcp://0.0.0.0:4840",
+    "applicationUri": "urn:emergency-lighting:controller",
+    "serverName": "Emergency Lighting Controller",
+    "securityPolicy": "None"
+  },
+  "webServer": {
+    "enabled": false,
+    "bind": "0.0.0.0",
+    "port": 8080,
+    "allowRemote": true,
+    "apiPrefix": "/api",
+    "maxConnections": 20,
+    "requestTimeoutMs": 5000
+  }
+}
