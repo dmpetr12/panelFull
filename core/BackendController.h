@@ -15,6 +15,7 @@ class MaintenanceChecker;
 class PasswordManager;
 class ValueProvider;
 class BatteryController;
+class ModbusRtuSlave;
 
 class BackendController : public QObject
 {
@@ -116,4 +117,5 @@ private:
 
     QString m_linesFile = "lines.json";
     bool m_started = false;
+    ModbusRtuSlave *m_modbusSlave = nullptr;// Modbus RTU 9600 8P1
 };

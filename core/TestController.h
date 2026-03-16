@@ -24,12 +24,17 @@ class TestController : public QObject
     Q_PROPERTY(bool testActive READ testActive NOTIFY testActiveChanged)
     Q_PROPERTY(Source testSource READ testSource NOTIFY testSourceChanged)
     Q_PROPERTY(QDateTime lastLongSystemTest READ lastLongSystemTest NOTIFY lastLongSystemTestChanged)
+    Q_PROPERTY(TestKind currentTestKind READ currentTestKind NOTIFY currentTestKindChanged)
 
 public:
     explicit TestController(QObject *parent = nullptr);
 
     enum class Source { None = 0, Schedule = 1, Operator = 2 };
     Q_ENUM(Source)
+    enum class TestKind { None = 0, Functional = 1, Duration = 2 };
+    Q_ENUM(TestKind)
+
+    TestKind currentTestKind() const { return m_currentTestKind; };
 
     void setModel(LinesModel *model)      { m_model = model; }
     void setIoManager(LineIoManager *io) { m_io = io; }
@@ -59,6 +64,7 @@ signals:
     void testActiveChanged();
     void testSourceChanged();
     void lastLongSystemTestChanged();
+    void currentTestKindChanged();
 
 private:
     enum class Active { None, Single, All, FireNoMeasure };
@@ -91,6 +97,8 @@ private:
     void recordLongSystemTestResult(bool ok);
     void loadMaintenance();
 
+    void setCurrentTestKind(TestKind k);
+
 private:
     LinesModel    *m_model = nullptr;
     LineIoManager *m_io    = nullptr;
@@ -122,6 +130,7 @@ private:
     QString  m_maintenancePath = "maintenance.json";
     QDateTime m_lastLongSystemTest;
     bool      m_lastLongSystemTestOk = true;
+    TestKind m_currentTestKind = TestKind::None;
 };
 
 #endif // TESTCONTROLLER_H

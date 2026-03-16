@@ -18,10 +18,17 @@ add_library(core STATIC
     LocalIpcServer.h
     TimeAjst.h
     systemObjects.h
+
+    modbus/ModbusRegisterMap.cpp
+    modbus/ModbusRegisterMap.h
+    modbus/ModbusRtuSlave.cpp
+    modbus/ModbusRtuSlave.h
 )
 
 target_include_directories(core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_CURRENT_SOURCE_DIR}/../modbus
 )
 
 target_link_libraries(core PUBLIC
@@ -29,4 +36,5 @@ target_link_libraries(core PUBLIC
     Qt6::SerialPort
     Qt6::SerialBus
     Qt6::Quick
+    Qt6::Gui
 )

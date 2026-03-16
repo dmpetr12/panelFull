@@ -24,6 +24,7 @@
 #include "MaintenanceChecker.h"
 #include "BatteryController.h"
 #include "line.h"
+#include "modbus/ModbusRtuSlave.h"
 //#include "logger.h"
 
 // id серийников
@@ -66,6 +67,9 @@ bool BackendController::start()
     setupBattery();
     setupConnections();
     applyInitialState();
+    if (m_modbusSlave) {
+        m_modbusSlave->start("/dev/ttyUSB0", 115200, 1);
+    }
 
     m_started = true;
     emit started();
@@ -83,6 +87,8 @@ void BackendController::stop()
 
     if (m_bus)
         m_bus->disconnectDevice();
+    if (m_modbusSlave)
+        m_modbusSlave->stop();
 
     m_started = false;
     emit stopped();
@@ -109,6 +115,7 @@ void BackendController::createObjects()
     if (!m_testI)         m_testI = new ValueProvider(this);
     if (!m_testP)         m_testP = new ValueProvider(this);
     if (!m_temperature)   m_temperature = new ValueProvider(this);
+    if (!m_modbusSlave)   m_modbusSlave = new ModbusRtuSlave(this, this);
 }
 
 

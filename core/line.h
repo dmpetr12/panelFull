@@ -176,9 +176,14 @@ public slots:
 
     Q_INVOKABLE QColor statusColor() const {
         switch (m_status) {
-        case OK: return QColor("#5EC85E");
-        case Failure: return QColor("#FF4C4C");
-        case Test: return QColor("#FFC700");
+        case OK:
+            return QColor("#5EC85E");
+        case Failure:
+            return QColor("#FF4C4C");
+        case Test:
+            return QColor("#FFC700");
+        case Undefined:
+            return QColor("gray");
         }
         return QColor("gray");
     }

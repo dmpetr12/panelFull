@@ -3,6 +3,14 @@
 #include "modbusbus.h"   // <-- ВАЖНО: тут полный тип ModbusBus
 #include "logger.h"
 
+void TestController::setCurrentTestKind(TestKind k)
+{
+    if (m_currentTestKind == k)
+        return;
+    m_currentTestKind = k;
+    emit currentTestKindChanged();
+}
+
 TestController::TestController(QObject *parent)
     : QObject(parent)
     , m_allTestTimer(new QTimer(this))
@@ -64,6 +72,7 @@ void TestController::startTestNoMeasure(int sec)
 
     m_fireNoMeasureTimer = new QTimer(this);
     m_fireNoMeasureTimer->setSingleShot(true);
+    setCurrentTestKind(TestKind::Functional);
 
     connect(m_fireNoMeasureTimer, &QTimer::timeout, this, [this]() {
         m_io->setForcedFire(false);
@@ -97,6 +106,7 @@ void TestController::startTestInternal(int lineIndex, int sec)
 
     if (lineIndex >= 0) startSingleLineTest(lineIndex, durationMs);
     else                startAllLinesTest(durationMs);
+    setCurrentTestKind((sec >= m_longThresholdMin * 60) ? TestKind::Duration : TestKind::Functional);
 }
 
 void TestController::stopAnyActiveTest()
@@ -125,6 +135,7 @@ void TestController::stopAnyActiveTest()
     setActive(Active::None);
     setSource(Source::None);
     setMeasuredLine(-1);
+    setCurrentTestKind(TestKind::None);
 
     if (m_io) {
         m_io->setForcedFire(false);
@@ -195,6 +206,7 @@ void TestController::startSingleLineTest(int lineIndex, int durationMs)
     }
 
     setActive(Active::Single);
+    setCurrentTestKind(TestKind::Functional);
 
     log(QString("ТЕСТ линия: %1 на %2 секунд")
             .arg(line->description())
@@ -211,6 +223,7 @@ void TestController::startSingleLineTest(int lineIndex, int durationMs)
         log(QString("Тест линии %1 не запустился").arg(lineIndex));
         setActive(Active::None);
         setSource(Source::None);
+        setCurrentTestKind(TestKind::None);
         return;
     }
     setMeasuredLine(lineIndex);
@@ -241,6 +254,7 @@ void TestController::startSingleLineTest(int lineIndex, int durationMs)
         cleanupSingleTimer();
         setActive(Active::None);
         setSource(Source::None);
+        setCurrentTestKind(TestKind::None);
         endFireMeasurements();
     });
 
@@ -273,6 +287,7 @@ void TestController::startAllLinesTest(int durationMs)
     }
 
     setActive(Active::All);
+    setCurrentTestKind(m_currentAllIsLong ? TestKind::Duration : TestKind::Functional);
     m_allTestRunning = true;
     m_allTestCurrentIndex = first;
 
@@ -285,6 +300,7 @@ void TestController::startAllLinesTest(int durationMs)
         allLineStatusReturn();
         setActive(Active::None);
         setSource(Source::None);
+        setCurrentTestKind(TestKind::None);
         m_io->setForcedFire(false);
         return;
     }
@@ -327,6 +343,7 @@ void TestController::handleAllLinesStep()
         setMeasuredLine(-1);
         setActive(Active::None);
         setSource(Source::None);
+        setCurrentTestKind(TestKind::None);
         if (m_currentAllIsLong) recordLongSystemTestResult(m_currentAllAllOk);
         if (m_model && !m_linesSavePath.isEmpty()) m_model->saveToFile(m_linesSavePath);
         m_currentAllIsLong = false;
@@ -344,6 +361,7 @@ void TestController::handleAllLinesStep()
         allLineStatusReturn();
         setActive(Active::None);
         setSource(Source::None);
+        setCurrentTestKind(TestKind::None);
         setMeasuredLine(-1);
         return;
     }
