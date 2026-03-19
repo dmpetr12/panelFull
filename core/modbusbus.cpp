@@ -125,6 +125,7 @@ void ModbusBus::onStateChanged(QModbusDevice::State state)
 {
     if (state == QModbusDevice::ConnectedState) {
         m_reconnect.stop();
+        m_sht20PollDivider = 0;
         resetAllDeviceStates();
         emit connectedChanged(true);
         startModeTimers();
@@ -234,13 +235,18 @@ void ModbusBus::normalTick()
 
     // 3) SHT20 (slave 12): Input Registers (0x04), temp reg (default 0x0001), 1 reg
     {
-        Request r;
-        r.type = ReqType::ReadInputRegs;
-        r.slaveAddr = m_addrSht20;
-        r.start = m_sht20TempReg;
-        r.count = 1;
-        r.meterKind = MeterKind::SHT20_Temperature;
-        enqueueNorm(r);
+        ++m_sht20PollDivider;
+        if (m_sht20PollDivider >= m_sht20PollEveryTicks) {
+            m_sht20PollDivider = 0;
+
+            Request r;
+            r.type = ReqType::ReadInputRegs;
+            r.slaveAddr = m_addrSht20;
+            r.start = m_sht20TempReg;
+            r.count = 1;
+            r.meterKind = MeterKind::SHT20_Temperature;
+            enqueueNorm(r);
+        }
     }
 }
 

@@ -155,6 +155,9 @@ private:
     int m_sht20TempReg = 0x0001;
     double m_sht20TempScale = 0.1;
 
+    int m_sht20PollDivider = 0;
+    int m_sht20PollEveryTicks = 5;   // раз в 5 normalTick, то есть раз в 5 секунд
+
     enum class Mode { Normal, Test };
     Mode m_mode = Mode::Normal;
 
