@@ -3,11 +3,11 @@
   "timeTest": 2,
   "numLines": 25,
   "maxRelayModules": 4,
-  "serialPort": "CH340",
+  "serialPort": "/dev/rs485_internal",
 
   "modbusRtu": {
-    "enabled": false,
-    "device": "/dev/ttyS2",
+    "enabled": true,
+    "device": "/dev/rs485_server",
     "baudRate": 9600,
     "parity": "E",
     "dataBits": 8,
