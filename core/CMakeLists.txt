@@ -3,7 +3,7 @@ add_library(core STATIC
     BackendController.h
     BatteryController.cpp
     BatteryController.h
-    AppConfig.cpp AppConfig.h line.h LineIoManager.cpp LineIoManager.h linesmodel.h MaintenanceChecker.h modbusbus.cpp modbusbus.h schedulemanager.cpp schedulemanager.h TestController.cpp TestController.h UsbSerialWatcher.h ValueProvider.h
+    AppConfig.cpp AppConfig.h line.h LineIoManager.cpp LineIoManager.h linesmodel.h MaintenanceChecker.h modbusbus.cpp modbusbus.h schedulemanager.cpp schedulemanager.h TestController.cpp TestController.h  ValueProvider.h
     PasswordManager.h
     DeviceSnapshot.h
     scheduletypes.h

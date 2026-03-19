@@ -128,10 +128,44 @@ QVariantList PanelFacade::lines() const
 
     return result;
 }
+bool PanelFacade::inletUAvailable() const
+{
+    return state().value("inletUAvailable").toBool(false);
+}
+
+bool PanelFacade::inletIAvailable() const
+{
+    return state().value("inletIAvailable").toBool(false);
+}
+
+bool PanelFacade::inletPAvailable() const
+{
+    return state().value("inletPAvailable").toBool(false);
+}
+
+bool PanelFacade::inletFAvailable() const
+{
+    return state().value("inletFAvailable").toBool(false);
+}
+
+bool PanelFacade::testUAvailable() const
+{
+    return state().value("testUAvailable").toBool(false);
+}
+
+bool PanelFacade::testIAvailable() const
+{
+    return state().value("testIAvailable").toBool(false);
+}
+
+bool PanelFacade::testPAvailable() const
+{
+    return state().value("testPAvailable").toBool(false);
+}
 
 bool PanelFacade::temperatureAvailable() const
 {
-    return state().contains("temperature") && state().value("temperature").isDouble();
+    return state().value("temperatureAvailable").toBool(false);
 }
 
 double PanelFacade::inletPValue() const
@@ -189,11 +223,17 @@ bool PanelFacade::sendCommand(const QJsonObject &req, QJsonObject *resp)
 
     socket.write(QJsonDocument(req).toJson(QJsonDocument::Compact));
 
-    if (!socket.waitForBytesWritten(300))
+    if (!socket.waitForBytesWritten(300)) {
+        m_connected = false;
+        emit changed();
         return false;
+    }
 
-    if (!socket.waitForReadyRead(500))
+    if (!socket.waitForReadyRead(500)) {
+        m_connected = false;
+        emit changed();
         return false;
+    }
 
     const QByteArray raw = socket.readAll();
 

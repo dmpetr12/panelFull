@@ -5,6 +5,7 @@
 #include <QSerialPort>
 #include <QtSerialBus/QModbusReply>
 #include <QDebug>
+#include <QHash>
 
 ModbusBus::ModbusBus(QObject *parent)
     : QObject(parent)
@@ -114,24 +115,33 @@ void ModbusBus::disconnectDevice()
 
     stopModeTimers();
     clearQueues();
-    if (m_modbus) m_modbus->disconnectDevice();
+    resetAllDeviceStates();
+
+    if (m_modbus)
+        m_modbus->disconnectDevice();
 }
 
 void ModbusBus::onStateChanged(QModbusDevice::State state)
 {
     if (state == QModbusDevice::ConnectedState) {
-        m_reconnect.stop();            // <-- ВАЖНО
+        m_reconnect.stop();
+        resetAllDeviceStates();
         emit connectedChanged(true);
         startModeTimers();
-        if (m_mode == Mode::Normal) normalTick();
-        else { testFireTick(); testFastTick(); }
+
+        if (m_mode == Mode::Normal)
+            normalTick();
+        else {
+            testFireTick();
+            testFastTick();
+        }
     } else if (state == QModbusDevice::UnconnectedState) {
         emit connectedChanged(false);
         stopModeTimers();
         clearQueues();
 
         if (m_wantConnected)
-            m_reconnect.start();       // <-- ВАЖНО
+            m_reconnect.start();
     }
 }
 
@@ -493,12 +503,17 @@ void ModbusBus::sendRequest(const Request &r)
         reply->deleteLater();
 
         if (err != QModbusDevice::NoError) {
-            emit errorOccurred(QStringLiteral("Modbus reply error: %1 (%2) %3")
+            markRequestFailure(r);
+
+            emit errorOccurred(QStringLiteral("Modbus reply error: %1 (%2) addr=%3")
                                    .arg(errStr).arg(int(err)).arg(r.slaveAddr));
+
             m_busy = false;
             pump();
             return;
         }
+
+        markRequestSuccess(r);
 
         // ===== обработка чтения =====
         if (r.type == ReqType::ReadInputs) {
@@ -580,4 +595,60 @@ double ModbusBus::scaleDjsf(qint16 value, qint16 dp)
     while (exp > 0) { out *= 10.0; --exp; }
     while (exp < 0) { out /= 10.0; ++exp; }
     return out;
+}
+
+QString ModbusBus::deviceNameForRequest(const Request &r) const
+{
+    if (r.slaveAddr == m_addrInlet)
+        return QStringLiteral("Счетчик входа");
+    if (r.slaveAddr == m_addrTest)
+        return QStringLiteral("Тестовый счетчик");
+    if (r.slaveAddr == m_addrSht20)
+        return QStringLiteral("Датчик температуры");
+
+    if (r.slaveAddr >= m_relayBaseAddr &&
+        r.slaveAddr < m_relayBaseAddr + m_relayModuleCount) {
+        const int moduleIndex = r.slaveAddr - m_relayBaseAddr;
+        return QStringLiteral("Релейный модуль %1").arg(moduleIndex + 1);
+    }
+
+    return QStringLiteral("Modbus устройство");
+}
+
+void ModbusBus::markRequestSuccess(const Request &r)
+{
+    DeviceState &st = m_deviceStates[r.slaveAddr];
+    if (st.name.isEmpty())
+        st.name = deviceNameForRequest(r);
+
+    const bool wasOffline = !st.online;
+
+    st.online = true;
+    st.failCount = 0;
+
+    if (wasOffline) {
+        emit deviceOnline(st.name, r.slaveAddr);
+    }
+}
+
+void ModbusBus::markRequestFailure(const Request &r)
+{
+    DeviceState &st = m_deviceStates[r.slaveAddr];
+    if (st.name.isEmpty())
+        st.name = deviceNameForRequest(r);
+
+    st.failCount++;
+
+    if (st.online && st.failCount >= m_failThreshold) {
+        st.online = false;
+        emit deviceOffline(st.name, r.slaveAddr);
+    }
+}
+
+void ModbusBus::resetAllDeviceStates()
+{
+    for (auto it = m_deviceStates.begin(); it != m_deviceStates.end(); ++it) {
+        it->online = true;
+        it->failCount = 0;
+    }
 }

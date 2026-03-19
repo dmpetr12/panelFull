@@ -29,7 +29,12 @@ ModbusRtuSlave::~ModbusRtuSlave()
     stop();
 }
 
-bool ModbusRtuSlave::start(const QString &portName, int baudRate, int slaveId)
+bool ModbusRtuSlave::start(const QString &portName,
+                           int baudRate,
+                           QSerialPort::Parity parity,
+                           QSerialPort::DataBits dataBits,
+                           QSerialPort::StopBits stopBits,
+                           int slaveId)
 {
     if (m_server->state() != QModbusDevice::UnconnectedState)
         m_server->disconnectDevice();
@@ -37,10 +42,10 @@ bool ModbusRtuSlave::start(const QString &portName, int baudRate, int slaveId)
     setupServerMap();
 
     m_server->setConnectionParameter(QModbusDevice::SerialPortNameParameter, portName);
-    m_server->setConnectionParameter(QModbusDevice::SerialParityParameter, QSerialPort::EvenParity);
+    m_server->setConnectionParameter(QModbusDevice::SerialParityParameter, parity);
     m_server->setConnectionParameter(QModbusDevice::SerialBaudRateParameter, baudRate);
-    m_server->setConnectionParameter(QModbusDevice::SerialDataBitsParameter, QSerialPort::Data8);
-    m_server->setConnectionParameter(QModbusDevice::SerialStopBitsParameter, QSerialPort::OneStop);
+    m_server->setConnectionParameter(QModbusDevice::SerialDataBitsParameter, dataBits);
+    m_server->setConnectionParameter(QModbusDevice::SerialStopBitsParameter, stopBits);
 
     m_server->setServerAddress(slaveId);
 

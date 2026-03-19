@@ -7,6 +7,7 @@
 #include <QtSerialBus/QModbusRtuSerialClient>
 #include <QtSerialBus/QModbusDataUnit>
 #include <deque>
+#include <QHash>
 #include <cstdint>
 
 class ModbusBus : public QObject
@@ -68,6 +69,9 @@ signals:
 
     // SHT20 (slave 12): температура
     void temperatureUpdated(double T);
+
+    void deviceOffline(const QString &name, int address);
+    void deviceOnline(const QString &name, int address);
 
 private slots:
     void onStateChanged(QModbusDevice::State state);
@@ -161,6 +165,20 @@ private:
     QTimer m_reconnect;
     bool m_wantConnected = false;
     int m_reconnectMs = 2000;
+
+    QString deviceNameForRequest(const Request &r) const;
+    void markRequestSuccess(const Request &r);
+    void markRequestFailure(const Request &r);
+    void resetAllDeviceStates();
+
+    struct DeviceState
+    {
+        QString name;
+        bool online = true;
+        int failCount = 0;
+    };
+    QHash<int, DeviceState> m_deviceStates;
+    int m_failThreshold = 3;
 };
 
 #endif // MODBUSBUS_H

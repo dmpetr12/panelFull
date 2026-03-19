@@ -40,11 +40,21 @@ struct DeviceSnapshot
     double inletP = 0.0;
     double inletF = 0.0;
 
+    bool inletUAvailable = false;
+    bool inletIAvailable = false;
+    bool inletPAvailable = false;
+    bool inletFAvailable = false;
+
     double testU = 0.0;
     double testI = 0.0;
     double testP = 0.0;
 
+    bool testUAvailable = false;
+    bool testIAvailable = false;
+    bool testPAvailable = false;
+
     double temperature = 0.0;
+    bool temperatureAvailable = false;
 
     bool busConnected = false;
 

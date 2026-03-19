@@ -57,11 +57,21 @@ inline QJsonObject deviceSnapshotToJson(const DeviceSnapshot &s)
     obj["inletP"] = s.inletP;
     obj["inletF"] = s.inletF;
 
+    obj["inletUAvailable"] = s.inletUAvailable;
+    obj["inletIAvailable"] = s.inletIAvailable;
+    obj["inletPAvailable"] = s.inletPAvailable;
+    obj["inletFAvailable"] = s.inletFAvailable;
+
     obj["testU"] = s.testU;
     obj["testI"] = s.testI;
     obj["testP"] = s.testP;
 
+    obj["testUAvailable"] = s.testUAvailable;
+    obj["testIAvailable"] = s.testIAvailable;
+    obj["testPAvailable"] = s.testPAvailable;
+
     obj["temperature"] = s.temperature;
+    obj["temperatureAvailable"] = s.temperatureAvailable;
 
     obj["busConnected"] = s.busConnected;
     obj["fireInput"] = s.fireInput;

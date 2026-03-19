@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
     font.setPixelSize(30);
     app.setFont(font);
 
-    //app.setOverrideCursor(QCursor(Qt::BlankCursor));
+    app.setOverrideCursor(QCursor(Qt::BlankCursor));
 
     PanelFacade panel;
 

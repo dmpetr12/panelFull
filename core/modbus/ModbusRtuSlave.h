@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QVector>
+#include <QSerialPort>
 #include <QtSerialBus/QModbusDataUnit>
 
 class QModbusRtuSerialServer;
@@ -17,8 +18,11 @@ public:
     ~ModbusRtuSlave() override;
 
     bool start(const QString &portName,
-               int baudRate = 9600,
-               int slaveId = 1);
+               int baudRate,
+               QSerialPort::Parity parity,
+               QSerialPort::DataBits dataBits,
+               QSerialPort::StopBits stopBits,
+               int slaveId);
     void stop();
 
     bool isRunning() const;

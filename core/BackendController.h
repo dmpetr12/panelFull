@@ -7,7 +7,6 @@
 class AppConfig;
 class LinesModel;
 class ModbusBus;
-class UsbSerialWatcher;
 class LineIoManager;
 class TestController;
 class ScheduleManager;
@@ -98,7 +97,6 @@ private:
     AppConfig *m_config = nullptr;
     LinesModel *m_lines = nullptr;
     ModbusBus *m_bus = nullptr;
-    UsbSerialWatcher *m_serialWatcher = nullptr;
     LineIoManager *m_lineIoManager = nullptr;
     TestController *m_testController = nullptr;
     ScheduleManager *m_scheduleManager = nullptr;

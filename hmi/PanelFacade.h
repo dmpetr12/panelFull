@@ -44,6 +44,14 @@ class PanelFacade : public QObject
     Q_PROPERTY(double testUValue READ testUValue NOTIFY changed)
     Q_PROPERTY(double testIValue READ testIValue NOTIFY changed)
     Q_PROPERTY(bool temperatureAvailable READ temperatureAvailable NOTIFY changed)
+    Q_PROPERTY(bool inletUAvailable READ inletUAvailable NOTIFY changed)
+    Q_PROPERTY(bool inletIAvailable READ inletIAvailable NOTIFY changed)
+    Q_PROPERTY(bool inletPAvailable READ inletPAvailable NOTIFY changed)
+    Q_PROPERTY(bool inletFAvailable READ inletFAvailable NOTIFY changed)
+
+    Q_PROPERTY(bool testUAvailable READ testUAvailable NOTIFY changed)
+    Q_PROPERTY(bool testIAvailable READ testIAvailable NOTIFY changed)
+    Q_PROPERTY(bool testPAvailable READ testPAvailable NOTIFY changed)
 
 public:
     explicit PanelFacade(QObject *parent = nullptr);
@@ -62,6 +70,14 @@ public:
     bool batteryFault() const;
     bool onBattery() const;
     bool charging() const;
+    bool inletUAvailable() const;
+    bool inletIAvailable() const;
+    bool inletPAvailable() const;
+    bool inletFAvailable() const;
+
+    bool testUAvailable() const;
+    bool testIAvailable() const;
+    bool testPAvailable() const;
     bool temperatureAvailable() const;
 
     int systemState() const;

@@ -158,7 +158,7 @@ Page {
 
             Label {
                 visible: tested
-                text: Number(panel.testPValue).toFixed(1)
+                text: panel.testPAvailable ? Number(panel.testPValue).toFixed(1) : "—"
                 font.pixelSize: 30
             }
 
@@ -171,7 +171,7 @@ Page {
 
             Label {
                 visible: tested
-                text: Number(panel.testUValue).toFixed(1)
+                text: panel.testUAvailable ? Number(panel.testUValue).toFixed(1) : "—"
                 font.pixelSize: 30
             }
 
@@ -184,7 +184,7 @@ Page {
 
             Label {
                 visible: tested
-                text: Number(panel.testIValue).toFixed(3)
+                text: panel.testIAvailable ?  Number(panel.testIValue).toFixed(3) : "—"
                 font.pixelSize: 30
             }
 

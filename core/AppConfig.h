@@ -40,7 +40,7 @@ public:
     struct ModbusRtuSettings
     {
         bool enabled = false;
-        QString device = "/dev/ttyS1";
+        QString device = "/dev/rs485_server";
         int baudRate = 9600;
         QString parity = "E";
         int dataBits = 8;
@@ -128,7 +128,7 @@ private:
     int m_timeTest = 2;
     int m_numLines = 25;
     int m_maxRelayModules = 1;
-    QString m_serialPort = "CH340";
+    QString m_serialPort = "/dev/rs485_internal";
 
     ModbusRtuSettings m_modbusRtu;
     ModbusTcpSettings m_modbusTcp;

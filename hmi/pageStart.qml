@@ -162,19 +162,19 @@ Rectangle {
                         columnSpacing: 10
 
                         Text {
-                            text: "Мощность  " + (panel.busConnected ? panel.inletPValue.toFixed(1) + " Вт" : "—")
+                            text: "Мощность  " + (panel.inletPAvailable ? panel.inletPValue.toFixed(1) + " Вт" : "—")
                             font.pixelSize: 30
                         }
                         Text {
-                            text: "Напряжение  " + (panel.busConnected ? panel.inletUValue.toFixed(1) + " В" : "—")
+                            text: "Напряжение  " + (panel.inletUAvailable ? panel.inletUValue.toFixed(1) + " В" : "—")
                             font.pixelSize: 30
                         }
                         Text {
-                            text: "Ток  " + (panel.busConnected ? panel.inletIValue.toFixed(1) + " A" : "—")
+                            text: "Ток  " + (panel.inletIAvailable ? panel.inletIValue.toFixed(1) + " A" : "—")
                             font.pixelSize: 30
                         }
                         Text {
-                            text: "Частота  " + (panel.busConnected ? panel.inletFValue.toFixed(1) + " Гц" : "—")
+                            text: "Частота  " + (panel.inletFAvailable ? panel.inletFValue.toFixed(1) + " Гц" : "—")
                             font.pixelSize: 30
                         }
                     }

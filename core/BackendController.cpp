@@ -2,12 +2,12 @@
 
 #include <QDebug>
 #include <QCoreApplication>
-#include <QSerialPortInfo>
 #include <QObject>
 #include <QFile>
 #include <QTextStream>
 #include <QStringConverter>
 #include <QDir>
+#include <QSerialPort>
 #include <QStorageInfo>
 #include <QDateTime>
 #include <algorithm>
@@ -17,7 +17,6 @@
 #include "ValueProvider.h"
 #include "linesmodel.h"
 #include "modbusbus.h"
-#include "UsbSerialWatcher.h"
 #include "LineIoManager.h"
 #include "TestController.h"
 #include "schedulemanager.h"
@@ -25,20 +24,43 @@
 #include "BatteryController.h"
 #include "line.h"
 #include "modbus/ModbusRtuSlave.h"
-//#include "logger.h"
-
-// id серийников
-constexpr quint16 VID_FT232  = 0x0403;
-constexpr quint16 PID_FT232  = 0x6001;
-
-constexpr quint16 VID_PL2303 = 0x067B;
-constexpr quint16 PID_PL2303 = 0x2303;
-
-constexpr quint16 VID_CH340  = 0x1A86;
-constexpr quint16 PID_CH340  = 0x7523;
+#include "logger.h"
 
 constexpr quint16 RelayBaseAddress  = 1;
 static constexpr int kAlarmRelayIndex = 1;
+
+static QSerialPort::Parity toParity(const QString &s)
+{
+    const QString v = s.trimmed().toUpper();
+    if (v == "E")
+        return QSerialPort::EvenParity;
+    if (v == "O")
+        return QSerialPort::OddParity;
+    return QSerialPort::NoParity;
+}
+
+static QSerialPort::DataBits toDataBits(int bits)
+{
+    switch (bits) {
+    case 5: return QSerialPort::Data5;
+    case 6: return QSerialPort::Data6;
+    case 7: return QSerialPort::Data7;
+    case 8:
+    default:
+        return QSerialPort::Data8;
+    }
+}
+
+static QSerialPort::StopBits toStopBits(int bits)
+{
+    switch (bits) {
+    case 2: return QSerialPort::TwoStop;
+    case 1:
+    default:
+        return QSerialPort::OneStop;
+    }
+}
+
 
 BackendController::BackendController(QObject *parent)
     : QObject(parent)
@@ -67,8 +89,22 @@ bool BackendController::start()
     setupBattery();
     setupConnections();
     applyInitialState();
-    if (m_modbusSlave) {
-        m_modbusSlave->start("/dev/ttyUSB0", 115200, 1);
+    if (m_modbusSlave && m_config->modbusRtuEnabled()) {
+        const bool ok = m_modbusSlave->start(
+            m_config->modbusRtuDevice(),
+            m_config->modbusRtuBaudRate(),
+            toParity(m_config->modbusRtuParity()),
+            toDataBits(m_config->modbusRtuDataBits()),
+            toStopBits(m_config->modbusRtuStopBits()),
+            m_config->modbusRtuSlaveId()
+            );
+
+        if (!ok) {
+            emit logMessage(QStringLiteral("Не удалось запустить Modbus RTU сервер"));
+        } else {
+            emit logMessage(QStringLiteral("Modbus RTU сервер запущен на %1")
+                                .arg(m_config->modbusRtuDevice()));
+        }
     }
 
     m_started = true;
@@ -81,9 +117,6 @@ void BackendController::stop()
 {
     if (!m_started)
         return;
-
-    if (m_serialWatcher)
-        m_serialWatcher->stop();
 
     if (m_bus)
         m_bus->disconnectDevice();
@@ -161,9 +194,22 @@ void BackendController::setupLines()
 void BackendController::setupBus()
 {
     QObject::connect(m_bus, &ModbusBus::errorOccurred,
-                     this, [this](const QString &msg) {
+                     this, [](const QString &msg) {
                          qWarning() << "RelaysBus error:" << msg;
-                         emit logMessage(QStringLiteral("RelaysBus error: %1").arg(msg));
+                     });
+
+    QObject::connect(m_bus, &ModbusBus::deviceOffline,
+                     this, [this](const QString &name, int address) {
+                         emit logMessage(QStringLiteral("%1 (addr=%2): устройство недоступно")
+                                             .arg(name)
+                                             .arg(address));
+                     });
+
+    QObject::connect(m_bus, &ModbusBus::deviceOnline,
+                     this, [this](const QString &name, int address) {
+                         emit logMessage(QStringLiteral("%1 (addr=%2): связь восстановлена")
+                                             .arg(name)
+                                             .arg(address));
                      });
 
     QObject::connect(m_bus, &ModbusBus::temperatureUpdated,
@@ -221,68 +267,53 @@ void BackendController::setupBus()
 
 void BackendController::setupSerialWatcher()
 {
-    const QString sp = m_config->serialPort();
+    const QString portName = m_config->serialPort();
 
-    auto setupRelaysBus = [this](const QString &portName) {
-        m_bus->disconnectDevice();
-        m_bus->setPortName(portName);
-        m_bus->connectDevice();
-    };
+    log(QString("[BACKEND] Using fixed internal RS485 port: %1").arg(portName));
 
-    if (sp.startsWith("/dev/") || sp.startsWith("COM")) {
-        log(QString("[BACKEND] Using fixed serial port: %1").arg(sp));
-        setupRelaysBus(sp);
-        return;
-    }
-
-    quint16 vid = 0;
-    quint16 pid = 0;
-
-    if (sp == "FT232") {
-        vid = VID_FT232;
-        pid = PID_FT232;
-    } else if (sp == "PL2303") {
-        vid = VID_PL2303;
-        pid = PID_PL2303;
-    } else if (sp == "CH340") {
-        vid = VID_CH340;
-        pid = PID_CH340;
-    } else {
-        log(QString("[BACKEND] Unknown serialPort in config: '%1'").arg(sp));
-        return;
-    }
-
-    m_serialWatcher = new UsbSerialWatcher(vid, pid, 2000, this);
-
-    QObject::connect(m_serialWatcher, &UsbSerialWatcher::portAvailable,
-                     this, [this, setupRelaysBus](const QString &portName) {
-                         log(QString("[BACKEND] Adapter available on %1").arg(portName));
-                         setupRelaysBus(portName);
-                     });
-
-    QObject::connect(m_serialWatcher, &UsbSerialWatcher::portLost,
-                     this, [this]() {
-                         log("[BACKEND] Adapter lost, disconnecting bus");
-                         m_bus->disconnectDevice();
-                     });
-
-    m_serialWatcher->start();
+    m_bus->disconnectDevice();
+    m_bus->setPortName(portName);
+    m_bus->connectDevice();
 }
 
 DeviceSnapshot BackendController::snapshot() const
 {
     DeviceSnapshot s;
 
-    if (m_inletU) s.inletU = m_inletU->value();
-    if (m_inletI) s.inletI = m_inletI->value();
-    if (m_inletP) s.inletP = m_inletP->value();
-    if (m_inletF) s.inletF = m_inletF->value();
+    if (m_inletU) {
+        s.inletU = m_inletU->value();
+        s.inletUAvailable = m_inletU->valid();
+    }
+    if (m_inletI) {
+        s.inletI = m_inletI->value();
+        s.inletIAvailable = m_inletI->valid();
+    }
+    if (m_inletP) {
+        s.inletP = m_inletP->value();
+        s.inletPAvailable = m_inletP->valid();
+    }
+    if (m_inletF) {
+        s.inletF = m_inletF->value();
+        s.inletFAvailable = m_inletF->valid();
+    }
 
-    if (m_testU) s.testU = m_testU->value();
-    if (m_testI) s.testI = m_testI->value();
-    if (m_testP) s.testP = m_testP->value();
+    if (m_testU) {
+        s.testU = m_testU->value();
+        s.testUAvailable = m_testU->valid();
+    }
+    if (m_testI) {
+        s.testI = m_testI->value();
+        s.testIAvailable = m_testI->valid();
+    }
+    if (m_testP) {
+        s.testP = m_testP->value();
+        s.testPAvailable = m_testP->valid();
+    }
 
-    if (m_temperature) s.temperature = m_temperature->value();
+    if (m_temperature) {
+        s.temperature = m_temperature->value();
+        s.temperatureAvailable = m_temperature->valid();
+    }
 
     if (m_bus) {
         s.busConnected = m_bus->isConnected();
