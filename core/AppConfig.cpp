@@ -172,6 +172,23 @@ bool AppConfig::load(const QString &filePath)
             m_web.requestTimeoutMs = web["requestTimeoutMs"].toInt(m_web.requestTimeoutMs);
     }
 
+    if (obj.contains("logging") && obj["logging"].isObject()) {
+        QJsonObject log = obj["logging"].toObject();
+
+        if (log.contains("level") && log["level"].isString())
+            m_logging.level = log["level"].toString(m_logging.level);
+    }
+
+    if (obj.contains("modbusPolling") && obj["modbusPolling"].isObject()) {
+        QJsonObject poll = obj["modbusPolling"].toObject();
+
+        if (poll.contains("requestTimeoutMs") && poll["requestTimeoutMs"].isDouble())
+            m_modbusPolling.requestTimeoutMs = poll["requestTimeoutMs"].toInt(m_modbusPolling.requestTimeoutMs);
+
+        if (poll.contains("pollIntervalMs") && poll["pollIntervalMs"].isDouble())
+            m_modbusPolling.pollIntervalMs = poll["pollIntervalMs"].toInt(m_modbusPolling.pollIntervalMs);
+    }
+
     emit configChanged();
     return true;
 }
@@ -228,7 +245,24 @@ bool AppConfig::save(const QString &filePath) const
         return false;
     }
 
+    QJsonObject log;
+    log["level"] = m_logging.level;
+    obj["logging"] = log;
+
+    QJsonObject poll;
+    poll["requestTimeoutMs"] = m_modbusPolling.requestTimeoutMs;
+    poll["pollIntervalMs"] = m_modbusPolling.pollIntervalMs;
+    obj["modbusPolling"] = poll;
+
     f.write(doc.toJson(QJsonDocument::Indented));
     f.close();
     return true;
 }
+
+QString AppConfig::logLevel() const { return m_logging.level; }
+
+int AppConfig::modbusRequestTimeout() const { return m_modbusPolling.requestTimeoutMs; }
+int AppConfig::modbusPollInterval() const { return m_modbusPolling.pollIntervalMs; }
+
+const AppConfig::LoggingSettings& AppConfig::logging() const { return m_logging; }
+const AppConfig::ModbusPollingSettings& AppConfig::modbusPolling() const { return m_modbusPolling; }

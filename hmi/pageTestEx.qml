@@ -25,6 +25,8 @@ Rectangle {
 
     function startCurrent() {
         countdown = indexCh > -2 ? selectedMinutes * 60 : selectedMinutes * 3600
+        if (indexCh === -1)
+            countdown = panel.calcAllLinesTestDurationSec()
         if (countdown <= 0) {
             console.log("Длительность теста должна быть больше нуля")
             return
@@ -32,10 +34,8 @@ Rectangle {
 
         var ok = false
 
-        if (indexCh >= 0) {
+        if (indexCh >= -1) {
             ok = panel.startLineTest(indexCh, countdown)
-        } else if (indexCh === -1) {
-            ok = panel.startFunctionalTest()
         } else if (indexCh === -2) {
             ok = panel.startDurationTest()
         }
@@ -50,7 +50,9 @@ Rectangle {
     }
 
     function loadTitle() {
-        selectedMinutes = indexCh > -2 ? durationTst : durationAv
+        selectedMinutes = indexCh > -1 ? durationTst :
+                          indexCh > -2 ?   Math.ceil(panel.calcAllLinesTestDurationSec() / 60) :
+                          durationAv
 
         if (indexCh >= 0) {
             var ln = panel.lineAt(indexCh)
@@ -77,15 +79,11 @@ Rectangle {
 
     Component.onCompleted: {
         loadTitle()
+        panel.stopCurrentTest()
     }
 
-    Component.onDestruction: {
-        if (countdownTimer.running) {
-            countdownTimer.stop()
-            panel.stopCurrentTest()
-        }
-        win.testStart = false
-    }
+    Component.onDestruction: stopCurrent()
+
 
     Column {
         anchors.fill: parent
@@ -186,7 +184,7 @@ Rectangle {
                     }
 
                     Button {
-                        visible: indexCh !== -2
+                        visible: indexCh > -1
                         text: "ввести значение"
                         font.pixelSize: 40
                         property int p: indexCh > -2 ? maxMinute : maxHour

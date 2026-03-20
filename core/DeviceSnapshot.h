@@ -75,4 +75,6 @@ struct DeviceSnapshot
     BatterySnapshot battery;
 
     QVector<LineSnapshot> lines;
+
+    QString logLevel;
 };

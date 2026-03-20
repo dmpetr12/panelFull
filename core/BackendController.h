@@ -29,6 +29,7 @@ public:
     bool startFunctionalTest();
     bool startDurationTest();
     bool stopCurrentTest();
+    int calcAllLinesTestDurationSec() const;
     bool setForcedFire(bool on);
     bool resetAlarm();
     bool checkPassword(const QString &password) const;
@@ -73,6 +74,8 @@ public:
     ValueProvider* testP() const;
     ValueProvider* temperature() const;
 
+    QString logLevel() const { return m_logLevel; }
+
 signals:
     void started();
     void stopped();
@@ -116,4 +119,5 @@ private:
     QString m_linesFile = "lines.json";
     bool m_started = false;
     ModbusRtuSlave *m_modbusSlave = nullptr;// Modbus RTU 9600 8P1
+    QString m_logLevel;
 };

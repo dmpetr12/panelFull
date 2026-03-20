@@ -10,13 +10,15 @@
 #include <QHash>
 #include <cstdint>
 
+class AppConfig;
+
 class ModbusBus : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(bool connected READ isConnected NOTIFY connectedChanged)
 
 public:
-    explicit ModbusBus(QObject *parent = nullptr);
+    explicit ModbusBus(AppConfig *config, QObject *parent = nullptr);
     ~ModbusBus();
 
     // Настройка шины
@@ -24,7 +26,7 @@ public:
     void setBaudRate(int baud);                  // 9600
     void setRelayModuleCount(int count);         // 1..8
     void setRelayBaseAddress(int addr);          // 1 (адрес первого модуля реле)
-    void setTimeoutMs(int ms);                   // по умолчанию 250
+    void setTimeoutMs(int ms);                   // по умолчанию 350
     void setRetries(int n);                      // по умолчанию 0
 
     // Адреса устройств
@@ -72,6 +74,9 @@ signals:
 
     void deviceOffline(const QString &name, int address);
     void deviceOnline(const QString &name, int address);
+
+    void busOnline();
+    void busOffline(const QString &reason);
 
 private slots:
     void onStateChanged(QModbusDevice::State state);
@@ -137,7 +142,7 @@ private:
     QModbusRtuSerialClient *m_modbus = nullptr;
     QString m_portName;
     int m_baudRate = 9600;
-    int m_timeoutMs = 250;
+    int m_timeoutMs = 350;
     int m_retries = 0;
 
     int m_relayModuleCount = 1;
@@ -166,6 +171,7 @@ private:
     QTimer m_tickTestFire; // 500 мс (пожарный модуль inputs)
 
     QTimer m_reconnect;
+    bool m_busOnline = false;          // текущее логическое состояние шины
     bool m_wantConnected = false;
     int m_reconnectMs = 2000;
 
@@ -181,7 +187,8 @@ private:
         int failCount = 0;
     };
     QHash<int, DeviceState> m_deviceStates;
-    int m_failThreshold = 3;
+    int m_failThreshold = 5;
+    AppConfig *m_config = nullptr;
 };
 
 #endif // MODBUSBUS_H

@@ -36,5 +36,13 @@
     "apiPrefix": "/api",
     "maxConnections": 20,
     "requestTimeoutMs": 5000
+  },
+  "logging": {
+    "level": "DEBUG"
+  },
+
+  "modbusPolling": {
+    "requestTimeoutMs": 350,
+    "pollIntervalMs": 1000
   }
 }

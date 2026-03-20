@@ -97,7 +97,13 @@ void TestController::stopTest(int lineIndex)
 void TestController::startTestInternal(int lineIndex, int sec)
 {
     if (!m_model || !m_io) return;
-    if (sec < minSecTestDuration) sec = minSecTestDuration;
+    int i = calcAllLinesTestDurationSec();
+    if (lineIndex == -1)
+        sec = i;//  если старт всех линий то на время 60+N*10
+    else if(lineIndex > -1){
+            if (sec < minSecTestDuration) sec = minSecTestDuration;
+        }
+    else if(sec < i) sec = i;
     if (lineIndex < -2 || lineIndex >= m_model->rowCount()) return;
 
     const int durationMs = sec * 1000;
@@ -291,8 +297,8 @@ void TestController::startAllLinesTest(int durationMs)
     m_allTestRunning = true;
     m_allTestCurrentIndex = first;
 
-    int warmupMs = durationMs - (countFact+2) * m_shotTimeMesure;//+2 запас даем 4 с перед окончанием на неточность
-    if (warmupMs < 10000) warmupMs = 10000;// минимальное время прогрева 10с, маловато надеюсь не меньше 30с (если линий много поставишь не меньше двух минут короткий тест)
+    int warmupMs = durationMs - countFact * m_shotTimeMesure*1000;//+2 запас даем 4 с перед окончанием на неточность
+    if (warmupMs < m_shotTimeWarm*1000) warmupMs = m_shotTimeWarm*1000;// минимальное время прогрева 10с, маловато надеюсь не меньше 30с (если линий много поставишь не меньше двух минут короткий тест)
 
     if (!m_io->requestFireTestStart(m_allTestCurrentIndex)) {
         m_allTestRunning = false;
@@ -367,7 +373,7 @@ void TestController::handleAllLinesStep()
     }
     setMeasuredLine(m_allTestCurrentIndex);
 
-    m_allTestTimer->start(m_shotTimeMesure);
+    m_allTestTimer->start(m_shotTimeMesure * 1000);
 }
 
 bool TestController::checkLinePowerInternal(Line *line) const
@@ -433,4 +439,18 @@ void TestController::loadMaintenance()
 
     m_lastLongSystemTest = QDateTime::fromString(obj.value("lastLongSystemTest").toString(), Qt::ISODate);
     m_lastLongSystemTestOk = obj.value("lastLongSystemTestOk").toBool(true);
+}
+
+int TestController::calcAllLinesTestDurationSec() const
+{
+    if (!m_model)
+        return 0;
+
+    int countFact = 0;
+    for (int i = 0; i < m_model->rowCount(); ++i) {
+        if (isLineTestable(m_model->line(i)))
+            countFact++;
+    }
+
+    return (countFact-1) * m_shotTimeMesure + m_shotTimeWarm;
 }

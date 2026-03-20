@@ -502,4 +502,23 @@ bool PanelFacade::writeLog(const QString &msg)
     });
 }
 
+int PanelFacade::calcAllLinesTestDurationSec()
+{
+    QJsonObject resp;
+    if (!sendCommand(QJsonObject{
+                         { "cmd", "calcAllLinesTestDurationSec" }
+                     }, &resp)) {
+        return 0;
+    }
 
+    return resp.value("durationSec").toInt(0);
+}
+
+QString PanelFacade::logLevel() const
+{
+    // Проверяем, есть ли состояние от бэкенда
+    const QJsonObject st = state();
+    if (st.contains("logLevel"))
+        return st.value("logLevel").toString("INFO"); // дефолт INFO
+    return "INFO";
+}

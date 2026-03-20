@@ -36,6 +36,11 @@ class AppConfig : public QObject
     Q_PROPERTY(int webPort READ webPort NOTIFY configChanged)
     Q_PROPERTY(bool webAllowRemote READ webAllowRemote NOTIFY configChanged)
 
+    Q_PROPERTY(QString logLevel READ logLevel NOTIFY configChanged)
+
+    Q_PROPERTY(int modbusRequestTimeout READ modbusRequestTimeout NOTIFY configChanged)
+    Q_PROPERTY(int modbusPollInterval READ modbusPollInterval NOTIFY configChanged)
+
 public:
     struct ModbusRtuSettings
     {
@@ -79,6 +84,17 @@ public:
         int requestTimeoutMs = 5000;
     };
 
+    struct LoggingSettings
+    {
+        QString level = "INFO";
+    };
+
+    struct ModbusPollingSettings
+    {
+        int requestTimeoutMs = 350;
+        int pollIntervalMs = 1000;
+    };
+
 public:
     explicit AppConfig(QObject *parent = nullptr);
 
@@ -120,6 +136,14 @@ public:
 
     const WebServerSettings& webServer() const;
 
+    QString logLevel() const;
+
+    int modbusRequestTimeout() const;
+    int modbusPollInterval() const;
+
+    const LoggingSettings& logging() const;
+    const ModbusPollingSettings& modbusPolling() const;
+
 signals:
     void configChanged();
 
@@ -134,5 +158,8 @@ private:
     ModbusTcpSettings m_modbusTcp;
     OpcUaSettings m_opcUa;
     WebServerSettings m_web;
+
+    LoggingSettings m_logging;
+    ModbusPollingSettings m_modbusPolling;
 };
 

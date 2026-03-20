@@ -222,6 +222,14 @@ void LocalIpcServer::processMessage(QLocalSocket *socket, const QByteArray &data
         return;
     }
 
+    else if (cmd == "calcAllLinesTestDurationSec") {
+        QJsonObject resp;
+        resp["ok"] = true;
+        resp["durationSec"] = m_backend->calcAllLinesTestDurationSec();
+        sendJson(socket, resp);
+        return;
+    }
+
     if (cmd == "applyLineModes") {
         const bool ok = m_backend->applyLineModes();
 

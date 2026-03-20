@@ -1,5 +1,6 @@
 // ModbusBus.cpp
 #include "modbusbus.h"
+#include "AppConfig.h"
 
 #include <QVariant>
 #include <QSerialPort>
@@ -7,8 +8,9 @@
 #include <QDebug>
 #include <QHash>
 
-ModbusBus::ModbusBus(QObject *parent)
+ModbusBus::ModbusBus(AppConfig *config, QObject *parent)
     : QObject(parent)
+    , m_config(config)
 {
     m_modbus = new QModbusRtuSerialClient(this);
 
@@ -88,7 +90,7 @@ void ModbusBus::setupDevice()
     m_modbus->setConnectionParameter(QModbusDevice::SerialParityParameter, QVariant::fromValue(int(QSerialPort::NoParity)));
     m_modbus->setConnectionParameter(QModbusDevice::SerialStopBitsParameter, QVariant::fromValue(int(QSerialPort::OneStop)));
 
-    m_modbus->setTimeout(m_timeoutMs);
+    m_modbus->setTimeout(m_config->modbusRequestTimeout());
     m_modbus->setNumberOfRetries(m_retries);
 }
 
@@ -130,18 +132,29 @@ void ModbusBus::onStateChanged(QModbusDevice::State state)
         emit connectedChanged(true);
         startModeTimers();
 
+        if (!m_busOnline) {
+            m_busOnline = true;
+            emit busOnline();
+        }
+
         if (m_mode == Mode::Normal)
             normalTick();
         else {
             testFireTick();
             testFastTick();
         }
-    } else if (state == QModbusDevice::UnconnectedState) {
+    }
+    else if (state == QModbusDevice::UnconnectedState) {
         emit connectedChanged(false);
         stopModeTimers();
         clearQueues();
 
-        if (m_wantConnected)
+        if (m_busOnline) {
+            m_busOnline = false;
+            emit busOffline(m_modbus ? m_modbus->errorString() : QString());
+        }
+
+        if (m_wantConnected && !m_reconnect.isActive())
             m_reconnect.start();
     }
 }
@@ -149,8 +162,6 @@ void ModbusBus::onStateChanged(QModbusDevice::State state)
 void ModbusBus::onErrorOccurred(QModbusDevice::Error error)
 {
     if (error == QModbusDevice::NoError) return;
-
-    emit errorOccurred(QStringLiteral("Modbus error: %1").arg(m_modbus->errorString()));
 
     if (m_wantConnected && !isConnected())
         m_reconnect.start();
@@ -510,10 +521,7 @@ void ModbusBus::sendRequest(const Request &r)
 
         if (err != QModbusDevice::NoError) {
             markRequestFailure(r);
-
-            emit errorOccurred(QStringLiteral("Modbus reply error: %1 (%2) addr=%3")
-                                   .arg(errStr).arg(int(err)).arg(r.slaveAddr));
-
+            // emit errorOccurred(QStringLiteral("Modbus reply error: %1 (%2) addr=%3") .arg(errStr).arg(int(err)).arg(r.slaveAddr));
             m_busy = false;
             pump();
             return;

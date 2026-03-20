@@ -51,6 +51,7 @@ public:
     Q_INVOKABLE void startTest(int lineIndex, int sec);
     Q_INVOKABLE void startTestNoMeasure(int sec);
     Q_INVOKABLE void stopTest(int lineIndex);
+    Q_INVOKABLE int calcAllLinesTestDurationSec() const;
 
     Q_PROPERTY(int measuredLine READ measuredLine NOTIFY measuredLineChanged)
     int measuredLine() const { return m_measuredLine; }
@@ -113,7 +114,8 @@ private:
     bool    m_allTestRunning = false;
     int     m_allTestCurrentIndex = -1;
 
-    int     m_shotTimeMesure = 2000;
+    int     m_shotTimeMesure = 10;
+    int     m_shotTimeWarm = 60;
     int     minSecTestDuration = 60;
 
     Active  m_active = Active::None;

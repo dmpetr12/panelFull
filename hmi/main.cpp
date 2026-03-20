@@ -10,6 +10,7 @@
 #include "TimeAjst.h"
 #include "line.h"
 #include "linesmodel.h"
+#include "logger.h"
 
 int main(int argc, char *argv[])
 {
@@ -24,9 +25,10 @@ int main(int argc, char *argv[])
     font.setPixelSize(30);
     app.setFont(font);
 
-    app.setOverrideCursor(QCursor(Qt::BlankCursor));
 
     PanelFacade panel;
+    log(QString("Log level from backend:: %1").arg(panel.logLevel()));
+    if (panel.logLevel() != "DEBUG") app.setOverrideCursor(QCursor(Qt::BlankCursor));
 
     qmlRegisterType<TimeAjst>("App", 1, 0, "TimeAjst");
     qmlRegisterType<Line>("App", 1, 0, "Line");

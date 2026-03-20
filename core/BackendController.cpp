@@ -106,6 +106,13 @@ bool BackendController::start()
                                 .arg(m_config->modbusRtuDevice()));
         }
     }
+    if (m_config) {
+        m_logLevel = m_config->logLevel();
+        emit logMessage( QStringLiteral("Backend logLevel loaded: %1" ).arg(m_logLevel));
+    } else {
+        m_logLevel = "INFO"; // дефолт, если конфиг отсутствует
+        emit logMessage( QStringLiteral("ackend config missing, default logLevel: %1" ).arg(m_logLevel));
+    }
 
     m_started = true;
     emit started();
@@ -132,7 +139,7 @@ void BackendController::createObjects()
 {
     if (!m_config)            m_config = new AppConfig(this);
     if (!m_lines)             m_lines = new LinesModel(this);
-    if (!m_bus)               m_bus = new ModbusBus(this);
+    if (!m_bus)               m_bus = new ModbusBus(m_config, this);
     if (!m_lineIoManager)     m_lineIoManager = new LineIoManager(this);
     if (!m_testController)    m_testController = new TestController(this);
     if (!m_scheduleManager)   m_scheduleManager = new ScheduleManager(this);
@@ -193,9 +200,17 @@ void BackendController::setupLines()
 
 void BackendController::setupBus()
 {
-    QObject::connect(m_bus, &ModbusBus::errorOccurred,
-                     this, [](const QString &msg) {
-                         qWarning() << "RelaysBus error:" << msg;
+    QObject::connect(m_bus, &ModbusBus::busOnline,
+                     this, []() {
+                         qWarning() << "RelaysBus: связь с шиной восстановлена";
+                     });
+
+    QObject::connect(m_bus, &ModbusBus::busOffline,
+                     this, [](const QString &reason) {
+                         if (reason.isEmpty())
+                             qWarning() << "RelaysBus: шина недоступна";
+                         else
+                             qWarning() << "RelaysBus: шина недоступна:" << reason;
                      });
 
     QObject::connect(m_bus, &ModbusBus::deviceOffline,
@@ -369,6 +384,9 @@ DeviceSnapshot BackendController::snapshot() const
         s.battery.batteryFault = m_batteryController->batteryFault();
         s.battery.onBattery = m_batteryController->onBattery();
     }
+
+    if(m_config)
+        s.logLevel= m_config ? m_config->logLevel() : "INFO";
 
     return s;
 }
@@ -553,6 +571,11 @@ bool BackendController::setForcedFire(bool on)
                         .arg(on ? QStringLiteral("ВКЛ") : QStringLiteral("ВЫКЛ")));
     emit stateChanged();
     return true;
+}
+
+int BackendController::calcAllLinesTestDurationSec() const
+{
+    return m_testController ? m_testController->calcAllLinesTestDurationSec() : 0;
 }
 
 bool BackendController::checkPassword(const QString &password) const

@@ -53,6 +53,8 @@ class PanelFacade : public QObject
     Q_PROPERTY(bool testIAvailable READ testIAvailable NOTIFY changed)
     Q_PROPERTY(bool testPAvailable READ testPAvailable NOTIFY changed)
 
+    Q_PROPERTY(QString logLevel READ logLevel NOTIFY changed)
+
 public:
     explicit PanelFacade(QObject *parent = nullptr);
 
@@ -93,6 +95,7 @@ public:
     double inletUValue() const;
     double inletIValue() const;
     double inletFValue() const;
+    QString logLevel() const;
 
     Q_INVOKABLE bool startFunctionalTest();
     Q_INVOKABLE bool startDurationTest();
@@ -107,6 +110,7 @@ public:
     Q_INVOKABLE QVariantMap testSummary();
     Q_INVOKABLE bool setSystemTime(qint64 msec);
     Q_INVOKABLE bool changePassword(const QString &newPassword);
+    Q_INVOKABLE int calcAllLinesTestDurationSec();
 
     double testPValue() const;
     double testUValue() const;
