@@ -40,29 +40,25 @@ public slots:
             qDebug() << "✅ Системное время обновлено (Windows):" << dt.toString();
         }
 #else
-        QString iso = dt.toString("yyyy-MM-dd hh:mm:ss");
+        QString iso = dt.toString("yyyy-MM-dd HH:mm:ss");
 
-        // 1. Выключаем NTP
-       //int r1 = QProcess::execute("timedatectl", { "set-ntp", "false" });
-        //qDebug() << "файл .hset-ntp false exit code:" << r1;
+        QProcess p1;
+        p1.start("timedatectl", {"set-ntp", "false"});
+        p1.waitForFinished();
+        qDebug() << "set-ntp false exit:" << p1.exitCode();
+        qDebug() << "stderr:" << p1.readAllStandardError();
 
-        // 2. Ставим время
-        int r2 = QProcess::execute("timedatectl", { "set-time", iso });
-        qDebug() << "set-time exit code:" << r2;
-log(QStringLiteral("⏲ Системное время обновлено ") + iso);
-        // 3. Включаем NTP обратно
-        //int r3 = QProcess::execute("timedatectl", { "set-ntp", "true" });
-        //qDebug() << "set-ntp true exit code:" << r3;
+        QProcess p2;
+        p2.start("timedatectl", {"set-time", iso});
+        p2.waitForFinished();
+        qDebug() << "set-time exit:" << p2.exitCode();
+        qDebug() << "stderr:" << p2.readAllStandardError();
 
-        // struct timeval tv;
-        // tv.tv_sec  = dt.toSecsSinceEpoch();
-        // tv.tv_usec = 0;
-
-        // if (settimeofday(&tv, nullptr) != 0) {
-        //     perror("❌ Ошибка установки времени");
-        // } else {
-        //     qDebug() << "✅ Системное время обновлено (Linux):" << dt.toString();
-        // }
+        QProcess p3;
+        p3.start("timedatectl", {"set-ntp", "true"});
+        p3.waitForFinished();
+        qDebug() << "set-ntp true exit:" << p3.exitCode();
+        qDebug() << "stderr:" << p3.readAllStandardError();
 #endif
     }
 };

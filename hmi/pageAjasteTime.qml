@@ -130,15 +130,18 @@ Rectangle {
 
                 onClicked: {
                     let d = new Date(year, month - 1, day, hour, minute)
-                    panel.setSystemTime(d.getTime())
+                    let ok = panel.setSystemTime(d.getTime())
 
-
-                    let updated = new Date()
-                    year = updated.getFullYear()
-                    month = updated.getMonth() + 1
-                    day = updated.getDate()
-                    hour = updated.getHours()
-                    minute = updated.getMinutes()
+                    if (ok) {
+                        let updated = new Date()
+                        year = updated.getFullYear()
+                        month = updated.getMonth() + 1
+                        day = updated.getDate()
+                        hour = updated.getHours()
+                        minute = updated.getMinutes()
+                    } else {
+                        console.log("Не удалось установить системное время")
+                    }
 
                     dateText.text = Qt.formatDate(updated, "dd.MM.yyyy")
                     timeText.text = Qt.formatTime(updated, "hh:mm")

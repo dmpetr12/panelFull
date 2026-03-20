@@ -12,6 +12,11 @@
 #include <QDateTime>
 #include <algorithm>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+
 #include "AppConfig.h"
 #include "PasswordManager.h"
 #include "ValueProvider.h"
@@ -773,13 +778,75 @@ QVariantMap BackendController::testSummary() const
 
 bool BackendController::setSystemTime(qint64 msec)
 {
-    QDateTime dt = QDateTime::fromMSecsSinceEpoch(msec);
+    const QDateTime dt = QDateTime::fromMSecsSinceEpoch(msec);
+    const QString iso = dt.toString("yyyy-MM-dd HH:mm:ss");
 
-    QString cmd = "date -s \"" + dt.toString("yyyy-MM-dd hh:mm:ss") + "\"";
+    log(QString("setSystemTime requested: %1").arg(iso));
 
-    int res = system(cmd.toUtf8().constData());
+#ifdef _WIN32
+    SYSTEMTIME st;
+    const QDateTime utc = dt.toUTC();
 
-    return res == 0;
+    st.wYear         = utc.date().year();
+    st.wMonth        = utc.date().month();
+    st.wDay          = utc.date().day();
+    st.wHour         = utc.time().hour();
+    st.wMinute       = utc.time().minute();
+    st.wSecond       = utc.time().second();
+    st.wMilliseconds = utc.time().msec();
+
+    if (!SetSystemTime(&st)) {
+        log("SetSystemTime failed");
+        return false;
+    }
+
+    log(QString("System time updated successfully (Windows): %1")
+            .arg(utc.toString(Qt::ISODate)));
+    return true;
+
+#else
+    QProcess p1;
+    p1.start("timedatectl", {"set-ntp", "false"});
+    if (!p1.waitForFinished(3000)) {
+        log("set-ntp false timeout");
+        return false;
+    }
+
+    const QString err1 = QString::fromUtf8(p1.readAllStandardError()).trimmed();
+    log(QString("set-ntp false exit=%1 err='%2'")
+            .arg(p1.exitCode())
+            .arg(err1));
+
+    if (p1.exitCode() != 0)
+        return false;
+
+    QProcess p2;
+    p2.start("timedatectl", {"set-time", iso});
+    if (!p2.waitForFinished(3000)) {
+        log("set-time timeout");
+        return false;
+    }
+
+    const QString err2 = QString::fromUtf8(p2.readAllStandardError()).trimmed();
+    log(QString("set-time exit=%1 err='%2'")
+            .arg(p2.exitCode())
+            .arg(err2));
+
+    if (p2.exitCode() != 0)
+        return false;
+
+    QProcess p3;
+    p3.start("timedatectl", {"set-ntp", "true"});
+    p3.waitForFinished(3000);
+
+    const QString err3 = QString::fromUtf8(p3.readAllStandardError()).trimmed();
+    log(QString("set-ntp true exit=%1 err='%2'")
+            .arg(p3.exitCode())
+            .arg(err3));
+
+    log(QString("System time updated successfully (Linux): %1").arg(iso));
+    return true;
+#endif
 }
 
 QVariantMap BackendController::lineAt(int index) const
