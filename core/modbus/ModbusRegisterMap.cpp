@@ -4,6 +4,7 @@
 #include <QtMath>
 
 #include "../core/BackendController.h"
+#include "../core/LineIoManager.h"
 #include "../core/BatteryController.h"
 #include "../core/TestController.h"
 #include "../core/ValueProvider.h"
@@ -12,6 +13,8 @@
 
 namespace ModbusMap
 {
+static constexpr quint16 InvalidRegValue = 0xFFFF;
+
 static quint16 lowWord(quint32 v)
 {
     return static_cast<quint16>(v & 0xFFFF);
@@ -60,6 +63,20 @@ quint16 toScaled100(double v)
     return static_cast<quint16>(qRound(v * 100.0));
 }
 
+static quint16 readScaled10(ValueProvider *p)
+{
+    if (!p || !p->valid())
+        return InvalidRegValue;
+    return toScaled10(p->value());
+}
+
+static quint16 readScaled100(ValueProvider *p)
+{
+    if (!p || !p->valid())
+        return InvalidRegValue;
+    return toScaled100(p->value());
+}
+
 quint16 encodeBatteryState(BackendController *backend)
 {
     if (!backend)
@@ -77,11 +94,35 @@ quint16 encodeBatteryState(BackendController *backend)
 
     return BatteryNormal;
 }
+quint16 encodeEmergencyState(BackendController *backend)
+{
+    if (!backend || !backend->lineIoManager())
+        return EmergencyNone;
+
+    const bool fire = backend->lineIoManager()->fireActive();
+    const bool stop = backend->lineIoManager()->stopActive();
+
+    if (fire && stop)
+        return EmergencyFireAndStop;
+    if (fire)
+        return EmergencyFire;
+    if (stop)
+        return EmergencyStop;
+
+    return EmergencyNone;
+}
 
 quint16 encodeCabinetState(BackendController *backend)
 {
     if (!backend)
         return CabinetOk;
+
+    if (backend->lineIoManager()) {
+        if (backend->lineIoManager()->fireActive() ||
+            backend->lineIoManager()->stopActive()) {
+            return CabinetEmergency;
+        }
+    }
 
     const quint16 batState = encodeBatteryState(backend);
     if (batState == BatteryFault)
@@ -104,7 +145,7 @@ quint16 encodeCabinetState(BackendController *backend)
 
     LinesModel *lm = backend->lines();
     if (lm && lm->systemState() == 1)
-        return CabinetAlarm;
+        return CabinetLineAlarm;
 
     return CabinetOk;
 }
@@ -157,6 +198,9 @@ quint16 readInputRegister(BackendController *backend, int address)
     if (address == InRegCabinetState)
         return encodeCabinetState(backend);
 
+    if (address == InRegEmergencyState)
+        return encodeEmergencyState(backend);
+
     if (address == InRegLinesCount)
         return backend->lines() ? static_cast<quint16>(backend->lines()->rowCount()) : 0;
 
@@ -164,19 +208,19 @@ quint16 readInputRegister(BackendController *backend, int address)
         return encodeBatteryState(backend);
 
     if (address == InRegInputVoltage)
-        return toScaled10(readProvider(backend->inletU()));
+        return readScaled10(backend->inletU());
 
     if (address == InRegInputPower)
-        return toScaled10(readProvider(backend->inletP()));
+        return readScaled10(backend->inletP());
 
     if (address == InRegInputCurrent)
-        return toScaled100(readProvider(backend->inletI()));
+        return readScaled100(backend->inletI());
 
     if (address == InRegInputFrequency)
-        return toScaled100(readProvider(backend->inletF()));
+        return readScaled100(backend->inletF());
 
     if (address == InRegTemperature)
-        return toScaled10(readProvider(backend->temperature()));
+        return readScaled10(backend->temperature());
 
     if (address == InRegSystemTimeLow || address == InRegSystemTimeHigh) {
         const quint32 ts = static_cast<quint32>(QDateTime::currentSecsSinceEpoch());
@@ -229,8 +273,11 @@ quint16 readInputRegister(BackendController *backend, int address)
 
 bool writeCoil(BackendController *backend, int address, bool value)
 {
-    if (!backend || !value)
+    if (!backend)
         return false;
+
+    if (!value)
+        return true;   // игнорируем отпускание импульса
 
     switch (address) {
     case CoilFireOn:
@@ -238,6 +285,12 @@ bool writeCoil(BackendController *backend, int address, bool value)
 
     case CoilFireOff:
         return backend->setForcedFire(false);
+
+    case CoilStopOn:
+        return backend->setForcedStop(true);
+
+    case CoilStopOff:
+        return backend->setForcedStop(false);
 
     case CoilStopTest:
         return backend->stopCurrentTest();

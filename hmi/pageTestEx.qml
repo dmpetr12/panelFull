@@ -51,7 +51,7 @@ Rectangle {
 
     function loadTitle() {
         selectedMinutes = indexCh > -1 ? durationTst :
-                          indexCh > -2 ?   Math.ceil(panel.calcAllLinesTestDurationSec() / 60) :
+                          indexCh > -2 ?   panel.calcAllLinesTestDurationSec() :
                           durationAv
 
         if (indexCh >= 0) {
@@ -131,7 +131,9 @@ Rectangle {
                     spacing: 10
 
                     Text {
-                        text: indexCh > -2 ? "Время теста, мин:" : "Время теста, ч:"
+                        text: indexCh > -1 ? "Время теста, мин:" :
+                              indexCh ==-1 ? "Время теста, с:" :
+                                                 "Время теста, ч:"
                         font.pixelSize: 40
                         verticalAlignment: Text.AlignVCenter
                     }

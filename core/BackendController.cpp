@@ -2,6 +2,7 @@
 
 #include <QDebug>
 #include <QCoreApplication>
+#include <QProcess>
 #include <QObject>
 #include <QFile>
 #include <QTextStream>
@@ -32,7 +33,6 @@
 #include "logger.h"
 
 constexpr quint16 RelayBaseAddress  = 1;
-static constexpr int kAlarmRelayIndex = 1;
 
 static QSerialPort::Parity toParity(const QString &s)
 {
@@ -201,6 +201,7 @@ void BackendController::setupLines()
         else
             ln->setLineState(Line::Off);
     }
+
 }
 
 void BackendController::setupBus()
@@ -405,14 +406,14 @@ void BackendController::setupLineIo()
 
     QObject::connect(m_bus, &ModbusBus::connectedChanged,
                      this, [this](bool connected) {
-                         if (connected) {
-                             m_bus->setModeNormal();
-                             m_bus->setAllRelaysOffFast();
-                             m_lineIoManager->forceApplyAll();
+                         if (!connected)
+                             return;
 
-                             const bool emergency = (m_lines->systemState() == 1);
-                             m_bus->setRelayGlobal(kAlarmRelayIndex, emergency);
-                         }
+                         m_bus->setModeNormal();
+                         m_bus->setAllRelaysOffFast();
+                         m_lineIoManager->forceApplyAll();
+
+                         log(QStringLiteral("Связь с Modbus восстановлена, состояние реле пере-применено"));
                      });
 
     QObject::connect(m_lineIoManager, &LineIoManager::fireChanged,
@@ -511,7 +512,6 @@ void BackendController::setupConnections()
     QObject::connect(m_lines, &LinesModel::systemStateChanged,
                      this, [this]() {
                          const bool emergency = (m_lines->systemState() == 1);
-                         m_bus->setRelayGlobal(kAlarmRelayIndex, emergency);
                          m_lineIoManager->setAlarmLamp(emergency);
                          emit stateChanged();
                      });
@@ -523,7 +523,6 @@ void BackendController::setupConnections()
 void BackendController::applyInitialState()
 {
     const bool emergency = (m_lines->systemState() == 1);
-    m_bus->setRelayGlobal(kAlarmRelayIndex, emergency);
     m_lineIoManager->setAlarmLamp(emergency);
 }
 
@@ -578,6 +577,19 @@ bool BackendController::setForcedFire(bool on)
     return true;
 }
 
+bool BackendController::setForcedStop(bool on)
+{
+    if (!m_lineIoManager)
+        return false;
+
+    m_lineIoManager->setForcedStop(on);
+
+    emit logMessage(QStringLiteral("Ручной режим STOP: %1")
+                        .arg(on ? QStringLiteral("ВКЛ") : QStringLiteral("ВЫКЛ")));
+    emit stateChanged();
+    return true;
+}
+
 int BackendController::calcAllLinesTestDurationSec() const
 {
     return m_testController ? m_testController->calcAllLinesTestDurationSec() : 0;
@@ -608,9 +620,6 @@ bool BackendController::resetAlarm()
 
     if (m_lineIoManager)
         m_lineIoManager->setAlarmLamp(false);
-
-    if (m_bus)
-        m_bus->setRelayGlobal(kAlarmRelayIndex, false);
 
     emit logMessage(QStringLiteral("Сброс аварии"));
 

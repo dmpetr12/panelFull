@@ -31,6 +31,7 @@ public:
     bool stopCurrentTest();
     int calcAllLinesTestDurationSec() const;
     bool setForcedFire(bool on);
+    bool setForcedStop(bool on);
     bool resetAlarm();
     bool checkPassword(const QString &password) const;
 

@@ -8,6 +8,7 @@
 
 #include "../core/BackendController.h"
 #include "ModbusRegisterMap.h"
+#include "logger.h"
 
 ModbusRtuSlave::ModbusRtuSlave(BackendController *backend, QObject *parent)
     : QObject(parent)
@@ -50,13 +51,12 @@ bool ModbusRtuSlave::start(const QString &portName,
     m_server->setServerAddress(slaveId);
 
     if (!m_server->connectDevice()) {
-        qWarning() << "Modbus RTU slave start failed:" << m_server->errorString();
+        log(QString("Modbus RTU slave start failed:%1").arg(m_server->errorString()));
         return false;
     }
 
     refreshInputRegisters();
-
-    qDebug() << "Modbus RTU slave started on" << portName << "addr" << slaveId;
+    log(QString("Modbus RTU slave started on %1  %2").arg(portName).arg(slaveId));
     return true;
 }
 

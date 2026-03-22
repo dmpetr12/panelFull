@@ -101,9 +101,11 @@ enum CoilAddress : int
 {
     CoilFireOn = 0,
     CoilFireOff = 1,
-    CoilStopTest = 2,
-    CoilStartFunctionalTest = 3,
-    CoilStartDurationTest = 4,
+    CoilStopOn = 2,
+    CoilStopOff = 3,
+    CoilStopTest = 4,
+    CoilStartFunctionalTest = 5,
+    CoilStartDurationTest = 6,
 
     CoilCount = 16
 };
@@ -115,7 +117,7 @@ enum InputRegAddress : int
     InRegCabinetState = 1,
     InRegLinesCount = 2,
     InRegBatteryState = 3,
-    InRegReserved05 = 4,
+    InRegEmergencyState = 4,     // 30005
     InRegReserved06 = 5,
     InRegReserved07 = 6,
     InRegReserved08 = 7,
@@ -160,11 +162,12 @@ enum LineBlockOffset : int
 enum CabinetStateCode : quint16
 {
     CabinetOk = 0,
-    CabinetAlarm = 1,
+    CabinetEmergency = 1,       // FIRE или STOP
     CabinetFunctionalTest = 2,
     CabinetDurationTest = 3,
     CabinetBatteryFault = 4,
-    CabinetBatteryNoCharge = 5
+    CabinetBatteryNoCharge = 5,
+    CabinetLineAlarm = 6
 };
 
 enum BatteryStateCode : quint16
@@ -189,11 +192,20 @@ enum LineStateCode : quint16
     LineUnused = 3
 };
 
+enum EmergencyStateCode : quint16
+{
+    EmergencyNone = 0,
+    EmergencyFire = 1,
+    EmergencyStop = 2,
+    EmergencyFireAndStop = 3
+};
+
 int lineBase(int lineIndex);
 
 quint16 readInputRegister(BackendController *backend, int address);
 bool writeCoil(BackendController *backend, int address, bool value);
 
+quint16 encodeEmergencyState(BackendController *backend);
 quint16 encodeCabinetState(BackendController *backend);
 quint16 encodeBatteryState(BackendController *backend);
 quint16 encodeLineType(Line *line);
