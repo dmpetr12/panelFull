@@ -76,6 +76,7 @@ inline QJsonObject deviceSnapshotToJson(const DeviceSnapshot &s)
     obj["busConnected"] = s.busConnected;
     obj["fireInput"] = s.fireInput;
     obj["fireActive"] = s.fireActive;
+    obj["forcedFireActive"] = s.forcedFireActive;
     obj["stopActive"] = s.stopActive;
     obj["dispatcherActive"] = s.dispatcherActive;
 

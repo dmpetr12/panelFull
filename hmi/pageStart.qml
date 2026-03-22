@@ -11,9 +11,18 @@ Rectangle {
 
     function recomputeMode() {
         btnStopTestVsb = false
+        btnResetForcedFireVsb = false
 
         if (panel.fireInput) {
             appMode.state = Mode.Fire
+            if (panel.forcedFireActive && unlocked)
+                btnResetForcedFireVsb = true
+            return
+        }
+        if (panel.forcedFireActive) {
+            appMode.state = Mode.Fire
+            if (unlocked)
+                btnResetForcedFireVsb = true
             return
         }
         if (panel.dispatcherActive) {
@@ -22,7 +31,8 @@ Rectangle {
         }
         if (panel.testRunning) {
             appMode.state = Mode.Test
-            btnStopTestVsb = true
+            if (unlocked)
+                btnStopTestVsb = true
             return
         }
 
@@ -35,6 +45,8 @@ Rectangle {
                   : System.Ok
     }
     property bool lastBackendConnected: true
+    property bool btnStopTestVsb: false
+    property bool btnResetForcedFireVsb: false
 
     Connections {
         target: panel
@@ -372,10 +384,44 @@ Rectangle {
                 Rectangle {
                     width: 300
                     height: 100
+                    color: "transparent"
+                    Rectangle {
+                        id: btnResetForcedFire
+                        visible: btnResetForcedFireVsb
+                        width: 300
+                        height: 100
+                        radius: 20
+                        color: "#FF4C4C"
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "СНЯТЬ ПОЖАР"
+                            color: "white"
+                            font.bold: true
+                            font.pixelSize: 34
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onEntered: btnResetForcedFire.color = "#D63B3B"
+                            onExited: btnResetForcedFire.color = "#FF4C4C"
+                            onPressed: {
+                                if (btnResetForcedFireVsb)
+                                    btnResetForcedFire.color = "black"
+                            }
+                            onReleased: btnResetForcedFire.color = "#FF4C4C"
+                            onClicked: {
+                                if (btnResetForcedFireVsb) {
+                                    panel.setForcedFire(false)
+                                }
+                            }
+                        }
+                    }
 
                     Rectangle {
                         id: btnStopTest
-                        visible: (btnStopTestVsb && unlocked)
+                        visible: (btnStopTestVsb )
                         width: 300
                         height: 100
                         radius: 20
@@ -384,7 +430,7 @@ Rectangle {
                         Text {
                             anchors.centerIn: parent
                             text: "Стоп Тест"
-                            color: (!(btnStopTestVsb && unlocked)) ? "grey" : "white"
+                            color: "white"
                             font.bold: true
                             font.pixelSize: 40
                         }
@@ -392,16 +438,14 @@ Rectangle {
                         MouseArea {
                             anchors.fill: parent
                             hoverEnabled: true
-                            onEntered: btnStopTest.color = "grey"
-                            onExited: btnStopTest.color = "grey"
+                            onEntered: btnStopTest.color = "#FFC700"
+                            onExited: btnStopTest.color = "#FFC700"
                             onPressed: {
-                                if (btnStopTestVsb && unlocked) {
+                                if (btnStopTestVsb ) {
                                     btnStopTest.color = "black"
-                                } else {
-                                    btnStopTest.color = "grey"
                                 }
                             }
-                            onReleased: btnStopTest.color = "grey"
+                            onReleased: btnStopTest.color = "#FFC700"
                             onClicked: {
                                 if (btnStopTestVsb && unlocked)
                                     panel.stopCurrentTest()

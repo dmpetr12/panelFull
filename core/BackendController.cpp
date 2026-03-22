@@ -30,6 +30,7 @@
 #include "BatteryController.h"
 #include "line.h"
 #include "modbus/ModbusRtuSlave.h"
+#include "modbus/ModbusTcpServer.h"
 #include "logger.h"
 
 constexpr quint16 RelayBaseAddress  = 1;
@@ -111,6 +112,18 @@ bool BackendController::start()
                                 .arg(m_config->modbusRtuDevice()));
         }
     }
+    if (m_modbusTcpServer && m_config->modbusTcpEnabled()) {
+        m_modbusTcpServer->setBackend(this);
+        //const QString tcpAddr = m_config ? m_config->modbusTcpListenAddress() : QStringLiteral("0.0.0.0");
+        const int tcpPort = m_config ? m_config->modbusTcpPort() : 502;
+        const bool okTcp = m_modbusTcpServer->start(QStringLiteral("0.0.0.0"), tcpPort);
+        if (!okTcp) {
+            emit logMessage(QStringLiteral("Не удалось запустить Modbus TCP сервер"));
+        }else {
+            emit logMessage(QStringLiteral("Modbus TCP сервер запущен на %1")
+                                .arg(tcpPort));
+        }
+    }
     if (m_config) {
         m_logLevel = m_config->logLevel();
         emit logMessage( QStringLiteral("Backend logLevel loaded: %1" ).arg(m_logLevel));
@@ -134,6 +147,8 @@ void BackendController::stop()
         m_bus->disconnectDevice();
     if (m_modbusSlave)
         m_modbusSlave->stop();
+    if (m_modbusTcpServer)
+        m_modbusTcpServer->stop();
 
     m_started = false;
     emit stopped();
@@ -161,6 +176,7 @@ void BackendController::createObjects()
     if (!m_testP)         m_testP = new ValueProvider(this);
     if (!m_temperature)   m_temperature = new ValueProvider(this);
     if (!m_modbusSlave)   m_modbusSlave = new ModbusRtuSlave(this, this);
+    if (!m_modbusTcpServer) m_modbusTcpServer = new ModbusTcpServer(this);
 }
 
 
@@ -342,6 +358,7 @@ DeviceSnapshot BackendController::snapshot() const
 
     if (m_lineIoManager) {
         s.fireActive = m_lineIoManager->fireActive();
+        s.forcedFireActive = m_lineIoManager->forcedFireActive();
         s.fireInput = m_lineIoManager->fireInput();
         s.stopActive = m_lineIoManager->stopActive();
         s.dispatcherActive = m_lineIoManager->dispatcherActive();
@@ -518,6 +535,11 @@ void BackendController::setupConnections()
 
     QObject::connect(m_batteryController, &BatteryController::stateChanged,
                      this, &BackendController::stateChanged);
+
+    if (m_modbusTcpServer) {
+        QObject::connect(m_modbusTcpServer, &ModbusTcpServer::logMessage,
+                         this, &BackendController::logMessage);
+    }
 }
 
 void BackendController::applyInitialState()

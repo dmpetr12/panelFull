@@ -1,93 +1,3 @@
-/*Coils — команды
-    Input Registers — всё, что диспетчер читает
-    Holding Registers — если потом понадобятся настройки
-    Discrete Inputs пока можно вообще не использовать
-
-Команды — Coils
-   Блок команд
-00001 — Пожар ВКЛ
-00002 — Пожар ВЫКЛ
-00003 — Стоп тест
-00004 — Старт функционального теста
-00005 — Старт теста на длительность
-00006..00016 — резерв
-     Команды делаем импульсным диспетчер записал 1 → шкаф выполнил → сам сбросил в 0.
-Общий статус шкафа — Input Registers
-        Блок 30001...
-30001 — Шкаф включен
-    0 = нет
-    1 = да
-30002 — Состояние шкафа
-    0 = OK
-    1 = авария
-    2 = функциональный тест
-    3 = тест на длительность
-    4 = неисправность батареи
-    5 = нет заряда
-30003 — Количество линий
-30004 — Состояние батареи
-    0 = норма
-    1 = неисправность
-    2 = нет заряда
-30005 30008— Резерв
-
- 5. Измерения — Input Registers
-     передавать не float, а целые числа с масштабом.
-   напряжение ×10
-     ток ×100
-    мощность ×10
-    частота ×100
-    температура ×10
-        Блок измерений
-
-30009 — Входное напряжение ×10
-30010 — Входная мощность ×10
-30011 — Входной ток ×100
-30012 — Частота ×100
-30013 — Температура ×10
-30014 — Резерв
-30015 — Резерв
-30016 — Резерв
-
- 6. Время
-
- Системное время и даты храним как Unix time 32-bit, то есть по 2 регистра на одно время.
-    Системное время
-30017 — System time low word
-30018 — System time high word
-            Дата последнего длительного теста шкафа
-30019 — Last duration test low word
-30020 — Last duration test high word
-30021..30024 — резерв
-
-    7. Линии
-  даём каждой линии одинаковый блок.
-    по 6 регистров на линию.
-               База:
-                      линия 1 начинается с 30101
-                      линия 2 с 30107
-                      линия 3 с 30113
-                      и так далее
-     Формула:
-base = 30101 + (номер_линии - 1) * 6
-
-      Что хранить по линии
-base + 0 — тип линии
-    0 = не используется
-    1 = постоянного действия
-    2 = непостоянного действия
-
-base + 1 — состояние линии
-      0 = OK
-    1 = авария
-    2 = тест
-    3 = отключена / не используется
-base + 2 — дата последнего теста, low word
-base + 3 — дата последнего теста, high word
-base + 4 — резерв
-base + 5 — резерв
-*/
-
 #pragma once
 
 #include <QtGlobal>
@@ -214,3 +124,235 @@ quint16 encodeLineState(Line *line);
 quint16 toScaled10(double v);
 quint16 toScaled100(double v);
 }
+
+/*
+ * Таблица регистров Modbus RTU
+
+Система управления аварийным освещением
+
+1. Команды управления
+Адрес	Тип	Название	Формат	Описание
+00001	Coil	Fire ON	Bool	Включить программный режим FIRE
+00002	Coil	Fire OFF	Bool	Выключить программный режим FIRE
+00003	Coil	Stop ON	Bool	Включить программный режим STOP
+00004	Coil	Stop OFF	Bool	Выключить программный режим STOP
+00005	Coil	Stop Test	Bool	Остановить текущий тест
+00006	Coil	Start Functional Test	Bool	Запуск функционального теста
+00007	Coil	Start Duration Test	Bool	Запуск теста на длительность
+00008–00016	Coil	Reserved	Bool	Резерв
+
+Команды являются импульсными. Шкаф обрабатывает только запись 1.
+После выполнения команда автоматически сбрасывается в 0.
+
+2. Общий статус шкафа
+Адрес	Тип	Название	Формат	Описание
+30001	Input Register	Cabinet Enabled	uint16	0 = выключен, 1 = включен
+30002	Input Register	Cabinet State	uint16	Общее состояние шкафа
+30003	Input Register	Lines Count	uint16	Количество линий
+30004	Input Register	Battery State	uint16	Состояние батареи
+30005	Input Register	Emergency State	uint16	Состояние аварийных команд FIRE/STOP
+30006	Input Register	Reserved	uint16	Резерв
+30007	Input Register	Reserved	uint16	Резерв
+30008	Input Register	Reserved	uint16	Резерв
+Состояние шкафа (30002)
+Код	Значение
+0	OK
+1	Emergency
+2	Функциональный тест
+3	Тест на длительность
+4	Неисправность батареи
+5	Нет заряда батареи
+6	Авария по линиям
+Аварийное состояние (30005)
+Код	Значение
+0	Нет аварийной команды
+1	FIRE
+2	STOP
+3	FIRE и STOP одновременно
+3. Измерения
+Адрес	Тип	Название	Формат	Описание
+30009	Input Register	Input Voltage	uint16	Входное напряжение ×10 В
+30010	Input Register	Input Power	uint16	Входная мощность ×10 Вт
+30011	Input Register	Input Current	uint16	Входной ток ×100 А
+30012	Input Register	Input Frequency	uint16	Частота ×100 Гц
+30013	Input Register	Temperature	uint16	Температура ×10 °C
+30014	Input Register	Reserved	uint16	Резерв
+30015	Input Register	Reserved	uint16	Резерв
+30016	Input Register	Reserved	uint16	Резерв
+4. Время
+Адрес	Тип	Название	Формат	Описание
+30017	Input Register	System Time Low	uint16	Системное время Unix, младшее слово
+30018	Input Register	System Time High	uint16	Системное время Unix, старшее слово
+30019	Input Register	Last Duration Test Low	uint16	Время последнего длительного теста, младшее слово
+30020	Input Register	Last Duration Test High	uint16	Время последнего длительного теста, старшее слово
+30021–30024	Input Register	Reserved	uint16	Резерв
+
+Время передается в формате Unix Time в секундах, как 32-битное значение, разбитое на два регистра.
+
+5. Состояние батареи
+Код	Значение
+0	Норма
+1	Неисправность
+2	Нет заряда
+6. Данные по линиям
+
+Каждая линия занимает 6 регистров.
+Начальный адрес блока линий: 30101
+
+Формула адреса линии:
+
+Адрес = 30101 + (номер линии - 1) × 6
+
+7. Структура блока линии
+Смещение	Название	Формат	Описание
++0	Line Type	uint16	Тип линии
++1	Line State	uint16	Состояние линии
++2	Last Test Time Low	uint16	Время последнего теста, младшее слово
++3	Last Test Time High	uint16	Время последнего теста, старшее слово
++4	Reserved	uint16	Резерв
++5	Reserved	uint16	Резерв
+Тип линии
+Код	Значение
+0	Линия не используется
+1	Постоянного действия
+2	Непостоянного действия
+Состояние линии
+Код	Значение
+0	OK
+1	Авария
+2	Тест
+3	Не используется
+8. Пример адресов первых линий
+Линия 1
+Адрес	Название
+30101	Тип линии
+30102	Состояние линии
+30103	Дата последнего теста low
+30104	Дата последнего теста high
+30105	Резерв
+30106	Резерв
+Линия 2
+Адрес	Название
+30107	Тип линии
+30108	Состояние линии
+30109	Дата последнего теста low
+30110	Дата последнего теста high
+30111	Резерв
+30112	Резерв
+Линия 3
+Адрес	Название
+30113	Тип линии
+30114	Состояние линии
+30115	Дата последнего теста low
+30116	Дата последнего теста high
+30117	Резерв
+30118	Резерв
+9. Резерв
+
+Рекомендуется оставить свободное пространство:
+
+Диапазон	Назначение
+00008–00016	Резерв команд
+30006–30008	Резерв статуса
+30014–30016	Резерв измерений
+30021–30024	Резерв времени
+30500–30600	Общий резерв системы
+Соответствие Modbus регистров и BackendController
+1. Команды управления
+Адрес	Название	Действие BackendController
+00001	Fire ON	setForcedFire(true)
+00002	Fire OFF	setForcedFire(false)
+00003	Stop ON	setForcedStop(true)
+00004	Stop OFF	setForcedStop(false)
+00005	Stop Test	stopCurrentTest()
+00006	Start Functional Test	startFunctionalTest()
+00007	Start Duration Test	startDurationTest()
+
+После выполнения команды бит должен автоматически сбрасываться в 0.
+
+2. Общий статус шкафа
+Адрес	Название	Источник данных
+30001	Cabinet Enabled	в текущей реализации всегда 1
+30002	Cabinet State	encodeCabinetState(backend)
+30003	Lines Count	LinesModel::rowCount()
+30004	Battery State	encodeBatteryState(backend) / BatteryController
+30005	Emergency State	LineIoManager::fireActive() и LineIoManager::stopActive()
+30006	Reserved	—
+30007	Reserved	—
+30008	Reserved	—
+3. Измерения
+
+Все измерения берутся из ValueProvider.
+
+Адрес	Название	Источник
+30009	Input Voltage	ValueProvider* inletU()
+30010	Input Power	ValueProvider* inletP()
+30011	Input Current	ValueProvider* inletI()
+30012	Input Frequency	ValueProvider* inletF()
+30013	Temperature	ValueProvider* temperature()
+30014	Reserved	—
+30015	Reserved	—
+30016	Reserved	—
+
+Значения считываются через:
+
+valid()
+value()
+
+и масштабируются перед выдачей в регистр.
+
+4. Время
+Адрес	Название	Источник
+30017	System Time Low	QDateTime::currentSecsSinceEpoch()
+30018	System Time High	QDateTime::currentSecsSinceEpoch()
+30019	Last Duration Test Low	TestController::lastLongSystemTest()
+30020	Last Duration Test High	TestController::lastLongSystemTest()
+30021–30024	Reserved	—
+5. Данные по линиям
+
+Данные берутся из LinesModel.
+
+Получение линии:
+
+Line *line = backend->lines()->line(index);
+Структура блока линии
+Смещение	Название	Источник
++0	Line Type	Line::mode()
++1	Line State	Line::status()
++2	Last Test Time Low	Line::lastMeasuredTest()
++3	Last Test Time High	Line::lastMeasuredTest()
++4	Reserved	—
++5	Reserved	—
+Соответствие свойств Line
+Свойство Line	Использование
+mode()	Тип линии
+status()	Состояние линии
+lastMeasuredTest()	Дата последнего теста
+power()	резерв на будущее
+current()	резерв на будущее
+voltage()	резерв на будущее
+6. Формирование состояния шкафа (30002)
+
+Состояние шкафа формируется функцией:
+
+encodeCabinetState(BackendController *backend)
+
+Приоритет формирования:
+
+Emergency
+Неисправность батареи
+Нет заряда батареи
+Функциональный тест
+Тест на длительность
+Авария по линиям
+OK
+7. Состояние батареи
+
+Источник:
+BatteryController
+
+Код	Значение
+0	Норма
+1	Неисправность
+2	Нет заряда
+*/

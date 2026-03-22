@@ -59,6 +59,7 @@ struct DeviceSnapshot
     bool busConnected = false;
 
     bool fireActive = false;
+    bool forcedFireActive = false;
     bool stopActive = false;
     bool dispatcherActive = false;
 

@@ -15,6 +15,7 @@ class PasswordManager;
 class ValueProvider;
 class BatteryController;
 class ModbusRtuSlave;
+class ModbusTcpServer;
 
 class BackendController : public QObject
 {
@@ -75,6 +76,8 @@ public:
     ValueProvider* testP() const;
     ValueProvider* temperature() const;
 
+    ModbusTcpServer* modbusTcpServer() const;
+
     QString logLevel() const { return m_logLevel; }
 
 signals:
@@ -120,5 +123,6 @@ private:
     QString m_linesFile = "lines.json";
     bool m_started = false;
     ModbusRtuSlave *m_modbusSlave = nullptr;// Modbus RTU 9600 8P1
+    ModbusTcpServer *m_modbusTcpServer = nullptr;
     QString m_logLevel;
 };

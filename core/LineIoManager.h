@@ -13,6 +13,7 @@ class LineIoManager : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(bool fireActive READ fireActive NOTIFY fireChanged)
+    Q_PROPERTY(bool forcedFireActive READ forcedFireActive NOTIFY forcedFireChanged)
     Q_PROPERTY(bool dispatcherActive READ dispatcherActive NOTIFY dispatcherActiveChanged)
     Q_PROPERTY(bool stopActive READ stopActive NOTIFY stopChanged)
     Q_PROPERTY(bool fireTestActive READ fireTestActive NOTIFY fireTestActiveChanged)
@@ -41,6 +42,7 @@ public:
     void requestSingleLineTestStop();
 
     bool fireActive() const { return m_fireInput || m_forcedFireCommand; }
+    bool forcedFireActive() const { return m_forcedFireCommand; }
     bool stopActive() const { return m_stopInput || m_forcedStopCommand; }
     bool emergencyActive() const { return fireActive() || stopActive(); }
 
@@ -62,6 +64,7 @@ signals:
     void emergencyStop();
 
     void fireTestActiveChanged(bool active);
+    void forcedFireChanged(bool active);
     void fireTestLineChanged(int lineIndex);
 
     void singleLineTestActiveChanged(bool active);

@@ -23,6 +23,8 @@ add_library(core STATIC
     modbus/ModbusRegisterMap.h
     modbus/ModbusRtuSlave.cpp
     modbus/ModbusRtuSlave.h
+    modbus/ModbusTcpServer.h
+    modbus/ModbusTcpServer.cpp
 )
 
 target_include_directories(core PUBLIC

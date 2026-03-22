@@ -13,6 +13,7 @@ class PanelFacade : public QObject
     Q_PROPERTY(bool connected READ connected NOTIFY changed)
 
     Q_PROPERTY(bool fireActive READ fireActive NOTIFY changed)
+    Q_PROPERTY(bool forcedFireActive READ forcedFireActive NOTIFY changed)
     Q_PROPERTY(bool fireInput READ fireInput NOTIFY changed)
     Q_PROPERTY(bool stopActive READ stopActive NOTIFY changed)
     Q_PROPERTY(bool dispatcherActive READ dispatcherActive NOTIFY changed)
@@ -61,6 +62,7 @@ public:
     bool connected() const;
 
     bool fireActive() const;
+    bool forcedFireActive() const;
     bool fireInput() const;
     bool stopActive() const;
     bool dispatcherActive() const;

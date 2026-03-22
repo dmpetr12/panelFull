@@ -130,6 +130,7 @@ void LineIoManager::setForcedFire(bool on)
     const bool prevEmergency = emergencyActive();
 
     m_forcedFireCommand = on;
+    emit forcedFireChanged(m_forcedFireCommand);
 
     const bool newFire = fireActive();
     const bool newStop = stopActive();

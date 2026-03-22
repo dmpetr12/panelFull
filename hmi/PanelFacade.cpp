@@ -38,6 +38,11 @@ bool PanelFacade::fireActive() const
     return state().value("fireActive").toBool(false);
 }
 
+bool PanelFacade::forcedFireActive() const
+{
+    return state().value("forcedFireActive").toBool(false);
+}
+
 bool PanelFacade::stopActive() const
 {
     return state().value("stopActive").toBool(false);
