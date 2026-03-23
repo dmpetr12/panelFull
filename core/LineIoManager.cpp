@@ -340,6 +340,14 @@ void LineIoManager::recomputeDesiredAll()
         return;
     }
 
+    if (m_testForceFire) {
+        if (m_fireTestActive && m_fireTestLine >= 0)
+            fillFireTestMode(m_fireTestLine);
+        else
+            fillFireMode();
+        return;
+    }
+
     if (m_singleTestActive && m_singleTestLine >= 0) {
         fillSingleLineTestMode(m_singleTestLine);
         return;
@@ -397,8 +405,6 @@ void LineIoManager::fillFireTestMode(int lineIndex)
     switch (m_twoStepKind) {
     case TwoStepKind::Step1:
         fillFireMode();
-        if (mapLineToRelayBits(m_lastMes, mod, bMeas, bWork))
-            setMeasOn(m_desiredRelays[mod], bMeas, true);
         break;
 
     case TwoStepKind::Step2:

@@ -41,7 +41,7 @@ public:
     bool requestSingleLineTestStart(int lineIndex);
     void requestSingleLineTestStop();
 
-    bool fireActive() const { return m_fireInput || m_forcedFireCommand; }
+    bool fireActive() const {return m_fireInput || m_forcedFireCommand || m_testForceFire;}
     bool forcedFireActive() const { return m_forcedFireCommand; }
     bool stopActive() const { return m_stopInput || m_forcedStopCommand; }
     bool emergencyActive() const { return fireActive() || stopActive(); }
