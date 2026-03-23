@@ -237,13 +237,6 @@ bool AppConfig::save(const QString &filePath) const
     web["requestTimeoutMs"] = m_web.requestTimeoutMs;
     obj["webServer"] = web;
 
-    QJsonDocument doc(obj);
-
-    QFile f(filePath);
-    if (!f.open(QIODevice::WriteOnly)) {
-        qWarning() << "AppConfig: cannot open" << filePath << "for write";
-        return false;
-    }
 
     QJsonObject log;
     log["level"] = m_logging.level;
@@ -254,6 +247,13 @@ bool AppConfig::save(const QString &filePath) const
     poll["pollIntervalMs"] = m_modbusPolling.pollIntervalMs;
     obj["modbusPolling"] = poll;
 
+    QJsonDocument doc(obj);
+
+    QFile f(filePath);
+    if (!f.open(QIODevice::WriteOnly)) {
+        qWarning() << "AppConfig: cannot open" << filePath << "for write";
+        return false;
+    }
     f.write(doc.toJson(QJsonDocument::Indented));
     f.close();
     return true;
