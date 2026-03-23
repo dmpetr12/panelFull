@@ -21,6 +21,7 @@ class TestController : public QObject
     Q_PROPERTY(Source testSource READ testSource NOTIFY testSourceChanged)
     Q_PROPERTY(QDateTime lastLongSystemTest READ lastLongSystemTest NOTIFY lastLongSystemTestChanged)
     Q_PROPERTY(TestKind currentTestKind READ currentTestKind NOTIFY currentTestKindChanged)
+    Q_PROPERTY(int measuredLine READ measuredLine NOTIFY measuredLineChanged)
 
 public:
     explicit TestController(QObject *parent = nullptr);
@@ -42,6 +43,7 @@ public:
     Source testSource() const { return m_source; }
     QDateTime lastLongSystemTest() const { return m_lastLongSystemTest; }
     bool lastLongTestResult() const { return m_lastLongSystemTestOk; }
+    int measuredLine() const { return m_measuredLine; }
 
     Q_INVOKABLE void startTestOperator(int lineIndex, int sec);
     Q_INVOKABLE bool startTestScheduleAll(int sec);
@@ -49,9 +51,6 @@ public:
     Q_INVOKABLE void startTestNoMeasure(int sec);
     Q_INVOKABLE void stopTest(int lineIndex);
     Q_INVOKABLE int calcAllLinesTestDurationSec() const;
-
-    Q_PROPERTY(int measuredLine READ measuredLine NOTIFY measuredLineChanged)
-    int measuredLine() const { return m_measuredLine; }
 
     void setLinesSavePath(const QString& path) { m_linesSavePath = path; }
     void setLongTestThresholdMinutes(int m) { m_longThresholdMin = m; }
@@ -71,12 +70,12 @@ private:
     void stopAnyActiveTest();
 
     void cleanupSingleTimer();
-    void cleanupFireNoMeasureTimer();
+    void cleanupNoMeasTimer();
 
     void allLineStatusReturn();
 
-    void beginFireMeasurements();
-    void endFireMeasurements();
+    void beginMeasurements();
+    void endMeasurements();
 
     bool isLineTestable(Line *ln) const;
     int  findNextTestableIndex(int fromExclusive) const;
@@ -105,7 +104,7 @@ private:
     int m_meterFastIntervalMs = 200;
 
     QTimer *m_singleTestTimer = nullptr;
-    QTimer *m_fireNoMeasureTimer = nullptr;
+    QTimer *m_noMeasTimer = nullptr;
 
     QTimer *m_allTestTimer = nullptr;
     bool    m_allTestRunning = false;
@@ -126,7 +125,7 @@ private:
     bool m_currentAllIsLong = false;
     bool m_currentAllAllOk  = true;
 
-    QString  m_maintenancePath = "maintenance.json";
+    QString   m_maintenancePath = "maintenance.json";
     QDateTime m_lastLongSystemTest;
     bool      m_lastLongSystemTestOk = true;
     TestKind  m_currentTestKind = TestKind::None;

@@ -74,20 +74,24 @@ inline QJsonObject deviceSnapshotToJson(const DeviceSnapshot &s)
     obj["temperatureAvailable"] = s.temperatureAvailable;
 
     obj["busConnected"] = s.busConnected;
-    obj["fireInput"] = s.fireInput;
-    obj["fireActive"] = s.fireActive;
-    obj["forcedFireActive"] = s.forcedFireActive;
-    obj["stopActive"] = s.stopActive;
-    obj["dispatcherActive"] = s.dispatcherActive;
 
-    obj["fireTestActive"] = s.fireTestActive;
-    obj["fireTestLine"] = s.fireTestLine;
+    // 🔥 пожар
+    obj["fireInput"] = s.fireInput;                // аппаратный вход
+    obj["fireActive"] = s.fireActive;              // общий пожар
+    obj["programFireActive"] = s.programFireActive; // программный пожар
+
+    // 🧪 тесты
+    obj["stepTestActive"] = s.stepTestActive;      // тест всех линий (пошаговый)
+    obj["stepTestLine"] = s.stepTestLine;
 
     obj["singleLineTestActive"] = s.singleLineTestActive;
     obj["singleLineTestLine"] = s.singleLineTestLine;
 
-    obj["systemState"] = s.systemState;
+    obj["noMeasTestActive"] = s.noMeasTestActive;
+
     obj["testRunning"] = s.testRunning;
+
+    obj["systemState"] = s.systemState;
 
     obj["battery"] = batterySnapshotToJson(s.battery);
 

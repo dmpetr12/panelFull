@@ -94,22 +94,15 @@ quint16 encodeBatteryState(BackendController *backend)
 
     return BatteryNormal;
 }
+
 quint16 encodeEmergencyState(BackendController *backend)
 {
     if (!backend || !backend->lineIoManager())
         return EmergencyNone;
 
     const bool fire = backend->lineIoManager()->fireActive();
-    const bool stop = backend->lineIoManager()->stopActive();
 
-    if (fire && stop)
-        return EmergencyFireAndStop;
-    if (fire)
-        return EmergencyFire;
-    if (stop)
-        return EmergencyStop;
-
-    return EmergencyNone;
+    return fire ? EmergencyFire : EmergencyNone;
 }
 
 quint16 encodeCabinetState(BackendController *backend)
@@ -117,11 +110,9 @@ quint16 encodeCabinetState(BackendController *backend)
     if (!backend)
         return CabinetOk;
 
-    if (backend->lineIoManager()) {
-        if (backend->lineIoManager()->fireActive() ||
-            backend->lineIoManager()->stopActive()) {
-            return CabinetEmergency;
-        }
+    if (backend->lineIoManager() &&
+        backend->lineIoManager()->fireActive()) {
+        return CabinetEmergency;
     }
 
     const quint16 batState = encodeBatteryState(backend);
@@ -139,7 +130,7 @@ quint16 encodeCabinetState(BackendController *backend)
             return CabinetDurationTest;
         case TestController::TestKind::None:
         default:
-            return CabinetFunctionalTest;
+            break;
         }
     }
 

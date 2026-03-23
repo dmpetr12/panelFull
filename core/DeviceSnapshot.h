@@ -1,23 +1,20 @@
 #pragma once
 
-#include <QString>
 #include <QDateTime>
-#include <QVector>
+#include <QString>
+#include <vector>
 
 struct LineSnapshot
 {
     QString description;
-
     double mpower = 0.0;
     double power = 0.0;
     double current = 0.0;
     double voltage = 0.0;
     double tolerance = 0.0;
-
     int mode = 0;
     int status = 0;
     int lineState = 0;
-
     QDateTime lastMeasuredTest;
 };
 
@@ -58,24 +55,26 @@ struct DeviceSnapshot
 
     bool busConnected = false;
 
-    bool fireActive = false;
-    bool forcedFireActive = false;
-    bool stopActive = false;
-    bool dispatcherActive = false;
+    // пожар
+    bool fireActive = false;         // аппаратный ИЛИ программный
+    bool fireInput = false;          // только аппаратный вход
+    bool programFireActive = false;  // только программный пожар
 
-    bool fireTestActive = false;
-    int fireTestLine = -3;
-    bool fireInput = false;
+    // тесты
+    bool stepTestActive = false;
+    int  stepTestLine = -1;
 
     bool singleLineTestActive = false;
-    int singleLineTestLine = -1;
+    int  singleLineTestLine = -1;
 
-    int systemState = 0;
+    bool noMeasTestActive = false;
+
     bool testRunning = false;
 
+    int systemState = 0;
+
+    std::vector<LineSnapshot> lines;
     BatterySnapshot battery;
 
-    QVector<LineSnapshot> lines;
-
-    QString logLevel;
+    QString logLevel = "INFO";
 };

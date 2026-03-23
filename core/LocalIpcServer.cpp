@@ -98,7 +98,7 @@ void LocalIpcServer::processMessage(QLocalSocket *socket, const QByteArray &data
         return;
     }
 
-    if (cmd == "setForcedFire") {
+    if (cmd == "setProgramFire") {
         const bool on = req.value("on").toBool(false);
         sendJson(socket, {{"ok", m_backend->setForcedFire(on)}});
         return;

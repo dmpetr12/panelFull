@@ -16,7 +16,7 @@ add_library(core STATIC
     devicesnapshot_json.h
     LocalIpcServer.cpp
     LocalIpcServer.h
-    TimeAjst.h
+
     systemObjects.h
 
     modbus/ModbusRegisterMap.cpp

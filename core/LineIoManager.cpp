@@ -76,7 +76,7 @@ void LineIoManager::onInputsUpdated(int moduleIndex, quint8 bits)
     m_lastInputs[moduleIndex] = bits;
 
     if (moduleIndex == MODULE0) {
-        updateFireStopFromModule0(bits);
+        updateFireFromModule0(bits);
         recomputeDesiredAll();
         applyAllModules(true);
         return;
@@ -90,53 +90,39 @@ void LineIoManager::onInputsUpdated(int moduleIndex, quint8 bits)
     applyAllModules(true);
 }
 
-void LineIoManager::updateFireStopFromModule0(quint8 bits0)
+void LineIoManager::updateFireFromModule0(quint8 bits0)
 {
     const bool prevFire = fireActive();
-    const bool prevStop = stopActive();
-    const bool prevEmergency = emergencyActive();
 
-    const bool newFire = bit(bits0, IN_FIRE);
-    const bool newStop = bit(bits0, IN_STOP);
+    const bool newFireInput = bit(bits0, IN_FIRE);
+    m_fireInput = newFireInput;
 
-    m_fireInput = newFire;
-    m_stopInput = newStop;
+    const bool newFire = fireActive();
 
-    const bool newFireActive = fireActive();
-    const bool newStopActive = stopActive();
-    const bool newEmergency = emergencyActive();
-
-    if (!prevEmergency && newEmergency) {
+    if (!prevFire && newFire) {
         cancelTestsDueToEmergency();
         if (m_bus)
             m_bus->setModeNormal();
         emit emergencyStop();
     }
 
-    if (prevFire != newFireActive)
-        emit fireChanged(newFireActive);
-
-    if (prevStop != newStopActive)
-        emit stopChanged(newStopActive);
+    if (prevFire != newFire)
+        emit fireChanged(newFire);
 }
 
-void LineIoManager::setForcedFire(bool on)
+void LineIoManager::setProgramFire(bool on)
 {
-    if (m_forcedFireCommand == on)
+    if (m_programFire == on)
         return;
 
     const bool prevFire = fireActive();
-    const bool prevStop = stopActive();
-    const bool prevEmergency = emergencyActive();
 
-    m_forcedFireCommand = on;
-    emit forcedFireChanged(m_forcedFireCommand);
+    m_programFire = on;
+    emit programFireChanged(m_programFire);
 
     const bool newFire = fireActive();
-    const bool newStop = stopActive();
-    const bool newEmergency = emergencyActive();
 
-    if (!prevEmergency && newEmergency) {
+    if (!prevFire && newFire) {
         cancelTestsDueToEmergency();
         if (m_bus)
             m_bus->setModeNormal();
@@ -146,43 +132,13 @@ void LineIoManager::setForcedFire(bool on)
     if (prevFire != newFire)
         emit fireChanged(newFire);
 
-    if (prevStop != newStop)
-        emit stopChanged(newStop);
-
     recomputeDesiredAll();
     applyAllModules(true);
 }
 
-void LineIoManager::setForcedStop(bool on)
+void LineIoManager::stopProgramFire()
 {
-    if (m_forcedStopCommand == on)
-        return;
-
-    const bool prevFire = fireActive();
-    const bool prevStop = stopActive();
-    const bool prevEmergency = emergencyActive();
-
-    m_forcedStopCommand = on;
-
-    const bool newFire = fireActive();
-    const bool newStop = stopActive();
-    const bool newEmergency = emergencyActive();
-
-    if (!prevEmergency && newEmergency) {
-        cancelTestsDueToEmergency();
-        if (m_bus)
-            m_bus->setModeNormal();
-        emit emergencyStop();
-    }
-
-    if (prevFire != newFire)
-        emit fireChanged(newFire);
-
-    if (prevStop != newStop)
-        emit stopChanged(newStop);
-
-    recomputeDesiredAll();
-    applyAllModules(true);
+    setProgramFire(false);
 }
 
 bool LineIoManager::requestNoMeasTestStart()
@@ -190,7 +146,7 @@ bool LineIoManager::requestNoMeasTestStart()
     if (!m_bus || !m_lines)
         return false;
 
-    if (emergencyActive())
+    if (fireActive())
         return false;
 
     cancelTestsDueToEmergency();
@@ -226,6 +182,8 @@ void LineIoManager::cancelTestsDueToEmergency()
     if (m_stepTestActive) {
         m_stepTestActive = false;
         m_stepTestLine = -1;
+        emit stepTestActiveChanged(false);
+        emit stepTestLineChanged(-1);
         emit fireTestActiveChanged(false);
         emit fireTestLineChanged(-1);
         anyChanged = true;
@@ -253,12 +211,14 @@ bool LineIoManager::requestSingleLineTestStart(int lineIndex)
     if (!m_bus || !m_lines) return false;
     if (lineIndex < 0 || lineIndex >= m_numLines) return false;
 
-    if (emergencyActive()) return false;
+    if (fireActive()) return false;
 
     if (m_stepTestActive) {
         m_stepTestActive = false;
         m_stepTestLine = -1;
         stopStepSwichTimers();
+        emit stepTestActiveChanged(false);
+        emit stepTestLineChanged(-1);
         emit fireTestActiveChanged(false);
         emit fireTestLineChanged(-1);
     }
@@ -302,7 +262,7 @@ bool LineIoManager::requestStepTestStart(int lineIndex)
     if (!m_bus || !m_lines) return false;
     if (lineIndex < 0 || lineIndex >= m_numLines) return false;
 
-    if (emergencyActive()) return false;
+    if (fireActive()) return false;
 
     if (m_singleTestActive) {
         m_singleTestActive = false;
@@ -321,6 +281,8 @@ bool LineIoManager::requestStepTestStart(int lineIndex)
     if (m_bus)
         m_bus->setModeTest();
 
+    emit stepTestActiveChanged(true);
+    emit stepTestLineChanged(lineIndex);
     emit fireTestActiveChanged(true);
     emit fireTestLineChanged(lineIndex);
 
@@ -343,6 +305,8 @@ void LineIoManager::requestStepTestStop()
     if (m_bus)
         m_bus->setModeNormal();
 
+    emit stepTestActiveChanged(false);
+    emit stepTestLineChanged(-1);
     emit fireTestActiveChanged(false);
     emit fireTestLineChanged(-1);
 
@@ -358,9 +322,6 @@ void LineIoManager::forceApplyAll()
 
 LineIoManager::Mode LineIoManager::currentMode() const
 {
-    if (stopActive())
-        return Mode::Stop;
-
     if (fireActive())
         return Mode::Fire;
 
@@ -382,10 +343,6 @@ void LineIoManager::recomputeDesiredAll()
         m_desiredRelays[m] = 0x00;
 
     switch (currentMode()) {
-    case Mode::Stop:
-        fillStopMode();
-        break;
-
     case Mode::Fire:
         fillFireMode();
         break;
@@ -489,7 +446,7 @@ void LineIoManager::fillStepTestMode(int lineIndex)
     }
 }
 
-void LineIoManager::fillStopMode()
+void LineIoManager::fillNormalMode()
 {
     setBit(m_desiredRelays[0], REL_SERV_0, false);
 
@@ -503,11 +460,6 @@ void LineIoManager::fillStopMode()
         setMeasOn(m_desiredRelays[mod], bMeas, false);
         setWorkLineOn(m_desiredRelays[mod], bWork, lineOn);
     }
-}
-
-void LineIoManager::fillNormalMode()
-{
-    fillStopMode();
 }
 
 bool LineIoManager::wantLineOn(int lineIndex) const

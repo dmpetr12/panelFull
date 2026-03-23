@@ -13,13 +13,10 @@ class LineIoManager : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(bool fireActive READ fireActive NOTIFY fireChanged)
-    Q_PROPERTY(bool forcedFireActive READ forcedFireActive NOTIFY forcedFireChanged)
-    Q_PROPERTY(bool dispatcherActive READ dispatcherActive NOTIFY dispatcherActiveChanged)
-    Q_PROPERTY(bool stopActive READ stopActive NOTIFY stopChanged)
+    Q_PROPERTY(bool programFireActive READ programFireActive NOTIFY programFireChanged)
 
-    // совместимость со старым UI/API:
-    Q_PROPERTY(bool fireTestActive READ fireTestActive NOTIFY fireTestActiveChanged)
-    Q_PROPERTY(int  fireTestLine READ fireTestLine NOTIFY fireTestLineChanged)
+    Q_PROPERTY(bool stepTestActive READ stepTestActive NOTIFY stepTestActiveChanged)
+    Q_PROPERTY(int  stepTestLine READ stepTestLine NOTIFY stepTestLineChanged)
 
     Q_PROPERTY(bool singleLineTestActive READ singleLineTestActive NOTIFY singleLineTestActiveChanged)
     Q_PROPERTY(int  singleLineTestLine READ singleLineTestLine NOTIFY singleLineTestLineChanged)
@@ -35,9 +32,9 @@ public:
 
     Q_INVOKABLE void forceApplyAll();
 
-    // аварийные команды
-    Q_INVOKABLE void setForcedFire(bool on);
-    Q_INVOKABLE void setForcedStop(bool on);
+    // программный пожар
+    Q_INVOKABLE void setProgramFire(bool on);
+    Q_INVOKABLE void stopProgramFire();
 
     // тест без измерений всех линий
     Q_INVOKABLE bool requestNoMeasTestStart();
@@ -47,7 +44,7 @@ public:
     Q_INVOKABLE bool requestSingleLineTestStart(int lineIndex);
     Q_INVOKABLE void requestSingleLineTestStop();
 
-    // тест всех линий с измерением (пошаговый)
+    // тест всех линий с измерением по шагам
     Q_INVOKABLE bool requestStepTestStart(int lineIndex);
     Q_INVOKABLE void requestStepTestStop();
 
@@ -55,45 +52,44 @@ public:
     Q_INVOKABLE bool requestFireTestStart(int lineIndex) { return requestStepTestStart(lineIndex); }
     Q_INVOKABLE void requestFireTestStop() { requestStepTestStop(); }
 
-    bool fireActive() const { return m_fireInput || m_forcedFireCommand; }
-    bool forcedFireActive() const { return m_forcedFireCommand; }
-    bool stopActive() const { return m_stopInput || m_forcedStopCommand; }
-    bool emergencyActive() const { return stopActive() || fireActive(); }
+    bool fireActive() const { return m_fireInput || m_programFire; }
+    bool programFireActive() const { return m_programFire; }
 
     bool fireInput() const { return m_fireInput; }
-    bool dispatcherActive() const { return m_dispatcherForce; }
 
-    // совместимость со старым UI/API
-    bool fireTestActive() const { return m_stepTestActive; }
-    int fireTestLine() const { return m_stepTestLine; }
+    bool stepTestActive() const { return m_stepTestActive; }
+    int stepTestLine() const { return m_stepTestLine; }
 
     bool singleLineTestActive() const { return m_singleTestActive; }
     int singleLineTestLine() const { return m_singleTestLine; }
 
-    bool noMeasTestActive() const { return m_noMeasTestActive; }
-    bool stepTestActive() const { return m_stepTestActive; }
-    int  stepTestLine() const { return m_stepTestLine; }
+    // совместимость со старым UI
+    bool fireTestActive() const { return m_stepTestActive; }
+    int fireTestLine() const { return m_stepTestLine; }
 
     void setAlarmLamp(bool on);
 
+    bool noMeasTestActive() const { return m_noMeasTestActive; }
+
 signals:
     void fireChanged(bool active);
-    void dispatcherActiveChanged(bool active);
-    void stopChanged(bool active);
-    void emergencyStop();
+    void programFireChanged(bool active);
 
-    // совместимость
-    void fireTestActiveChanged(bool active);
-    void forcedFireChanged(bool active);
-    void fireTestLineChanged(int lineIndex);
+    void stepTestActiveChanged(bool active);
+    void stepTestLineChanged(int lineIndex);
 
     void singleLineTestActiveChanged(bool active);
     void singleLineTestLineChanged(int lineIndex);
 
+    // совместимость со старым UI
+    void fireTestActiveChanged(bool active);
+    void fireTestLineChanged(int lineIndex);
+
+    void emergencyStop();
+
 private:
     enum class Mode {
         Normal,
-        Stop,
         Fire,
         NoMeasTest,
         SingleLineTest,
@@ -105,7 +101,6 @@ private:
 
     // module0 inputs bits
     static constexpr int IN_FIRE     = 0; // IN1
-    static constexpr int IN_STOP     = 1; // IN2
     static constexpr int IN_M0_LINE0 = 5; // IN6
     static constexpr int IN_M0_LINE1 = 6; // IN7
     static constexpr int IN_M0_LINE2 = 7; // IN8
@@ -115,7 +110,7 @@ private:
     static constexpr int REL_SERV_1 = 1; // лампа авария
 
 private:
-    void updateFireStopFromModule0(quint8 bits0);
+    void updateFireFromModule0(quint8 bits0);
     void cancelTestsDueToEmergency();
 
     Mode currentMode() const;
@@ -125,7 +120,6 @@ private:
     void fillNoMeasTestMode();
     void fillSingleLineTestMode(int lineIndex);
     void fillStepTestMode(int lineIndex);
-    void fillStopMode();
     void fillNormalMode();
 
     bool wantLineOn(int lineIndex) const;
@@ -157,15 +151,11 @@ private:
     quint8 m_desiredRelays[MAX_MODULES];
     quint8 m_lastSentRelays[MAX_MODULES];
 
-    // аппаратные входы
+    // аппаратный пожар
     bool m_fireInput = false;
-    bool m_stopInput = false;
 
-    // внешние/программные команды
-    bool m_forcedFireCommand = false;
-    bool m_forcedStopCommand = false;
-
-    bool m_dispatcherForce = false;
+    // программный пожар
+    bool m_programFire = false;
 
     // тесты
     bool m_noMeasTestActive = false;

@@ -33,24 +33,21 @@ QJsonObject PanelFacade::battery() const
     return m_state.value("battery").toObject();
 }
 
+// ===== пожар / режимы =====
+
 bool PanelFacade::fireActive() const
 {
     return state().value("fireActive").toBool(false);
 }
 
-bool PanelFacade::forcedFireActive() const
+bool PanelFacade::programFireActive() const
 {
-    return state().value("forcedFireActive").toBool(false);
+    return state().value("programFireActive").toBool(false);
 }
 
-bool PanelFacade::stopActive() const
+bool PanelFacade::fireInput() const
 {
-    return state().value("stopActive").toBool(false);
-}
-
-bool PanelFacade::dispatcherActive() const
-{
-    return state().value("dispatcherActive").toBool(false);
+    return state().value("fireInput").toBool(false);
 }
 
 bool PanelFacade::busConnected() const
@@ -62,6 +59,8 @@ bool PanelFacade::testRunning() const
 {
     return state().value("testRunning").toBool(false);
 }
+
+// ===== батарея =====
 
 double PanelFacade::batteryChargePercent() const
 {
@@ -88,6 +87,8 @@ bool PanelFacade::charging() const
     return battery().value("charging").toBool(false);
 }
 
+// ===== состояние системы =====
+
 int PanelFacade::systemState() const
 {
     return state().value("systemState").toInt(0);
@@ -98,19 +99,16 @@ int PanelFacade::lineCount() const
     return state().value("lines").toArray().size();
 }
 
-bool PanelFacade::fireTestActive() const
+// ===== тесты =====
+
+bool PanelFacade::stepTestActive() const
 {
-    return state().value("fireTestActive").toBool(false);
+    return state().value("stepTestActive").toBool(false);
 }
 
-bool PanelFacade::fireInput() const
+int PanelFacade::stepTestLine() const
 {
-    return state().value("fireInput").toBool(false);
-}
-
-int PanelFacade::fireTestLine() const
-{
-    return state().value("fireTestLine").toInt(-1);
+    return state().value("stepTestLine").toInt(-1);
 }
 
 bool PanelFacade::singleLineTestActive() const
@@ -123,6 +121,13 @@ int PanelFacade::singleLineTestLine() const
     return state().value("singleLineTestLine").toInt(-1);
 }
 
+bool PanelFacade::noMeasTestActive() const
+{
+    return state().value("noMeasTestActive").toBool(false);
+}
+
+// ===== линии =====
+
 QVariantList PanelFacade::lines() const
 {
     QVariantList result;
@@ -133,6 +138,9 @@ QVariantList PanelFacade::lines() const
 
     return result;
 }
+
+// ===== availability =====
+
 bool PanelFacade::inletUAvailable() const
 {
     return state().value("inletUAvailable").toBool(false);
@@ -172,6 +180,8 @@ bool PanelFacade::temperatureAvailable() const
 {
     return state().value("temperatureAvailable").toBool(false);
 }
+
+// ===== значения =====
 
 double PanelFacade::inletPValue() const
 {
@@ -213,6 +223,15 @@ double PanelFacade::testIValue() const
     return state().value("testI").toDouble(0.0);
 }
 
+QString PanelFacade::logLevel() const
+{
+    const QJsonObject st = state();
+    if (st.contains("logLevel"))
+        return st.value("logLevel").toString("INFO");
+    return "INFO";
+}
+
+// ===== IPC =====
 
 bool PanelFacade::sendCommand(const QJsonObject &req, QJsonObject *resp)
 {
@@ -220,7 +239,6 @@ bool PanelFacade::sendCommand(const QJsonObject &req, QJsonObject *resp)
     socket.connectToServer(m_serverName);
 
     if (!socket.waitForConnected(300)) {
-       //qWarning() << "Backend not available";
         m_connected = false;
         emit changed();
         return false;
@@ -276,6 +294,8 @@ void PanelFacade::refresh()
     pollState();
 }
 
+// ===== команды =====
+
 bool PanelFacade::startFunctionalTest()
 {
     return sendCommand({{"cmd", "startFunctionalTest"}});
@@ -291,10 +311,10 @@ bool PanelFacade::stopCurrentTest()
     return sendCommand({{"cmd", "stopCurrentTest"}});
 }
 
-bool PanelFacade::setForcedFire(bool on)
+bool PanelFacade::setProgramFire(bool on)
 {
     return sendCommand({
-        {"cmd", "setForcedFire"},
+        {"cmd", "setProgramFire"},
         {"on", on}
     });
 }
@@ -362,9 +382,7 @@ QVariantMap PanelFacade::testSummary()
     if (!ok)
         return result;
 
-    const QJsonObject summary = resp.value("summary").toObject();
-    result = summary.toVariantMap();
-
+    result = resp.value("summary").toObject().toVariantMap();
     return result;
 }
 
@@ -378,8 +396,6 @@ bool PanelFacade::setSystemTime(qint64 msec)
 
 QVariantMap PanelFacade::lineAt(int index) const
 {
-    QJsonObject resp;
-
     QLocalSocket socket;
     socket.connectToServer(m_serverName);
     if (!socket.waitForConnected(300))
@@ -399,18 +415,18 @@ QVariantMap PanelFacade::lineAt(int index) const
         return {};
 
     const QByteArray raw = socket.readAll();
+
     QJsonParseError err;
     const QJsonDocument doc = QJsonDocument::fromJson(raw, &err);
     if (err.error != QJsonParseError::NoError || !doc.isObject())
         return {};
 
-    resp = doc.object();
+    const QJsonObject resp = doc.object();
     if (!resp.value("ok").toBool(false))
         return {};
 
     return resp.value("line").toObject().toVariantMap();
 }
-
 
 bool PanelFacade::updateLine(int index, const QVariantMap &lineData)
 {
@@ -511,19 +527,10 @@ int PanelFacade::calcAllLinesTestDurationSec()
 {
     QJsonObject resp;
     if (!sendCommand(QJsonObject{
-                         { "cmd", "calcAllLinesTestDurationSec" }
+                         {"cmd", "calcAllLinesTestDurationSec"}
                      }, &resp)) {
         return 0;
     }
 
     return resp.value("durationSec").toInt(0);
-}
-
-QString PanelFacade::logLevel() const
-{
-    // Проверяем, есть ли состояние от бэкенда
-    const QJsonObject st = state();
-    if (st.contains("logLevel"))
-        return st.value("logLevel").toString("INFO"); // дефолт INFO
-    return "INFO";
 }

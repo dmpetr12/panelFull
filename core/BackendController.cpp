@@ -321,14 +321,17 @@ DeviceSnapshot BackendController::snapshot() const
         s.inletU = m_inletU->value();
         s.inletUAvailable = m_inletU->valid();
     }
+
     if (m_inletI) {
         s.inletI = m_inletI->value();
         s.inletIAvailable = m_inletI->valid();
     }
+
     if (m_inletP) {
         s.inletP = m_inletP->value();
         s.inletPAvailable = m_inletP->valid();
     }
+
     if (m_inletF) {
         s.inletF = m_inletF->value();
         s.inletFAvailable = m_inletF->valid();
@@ -338,10 +341,12 @@ DeviceSnapshot BackendController::snapshot() const
         s.testU = m_testU->value();
         s.testUAvailable = m_testU->valid();
     }
+
     if (m_testI) {
         s.testI = m_testI->value();
         s.testIAvailable = m_testI->valid();
     }
+
     if (m_testP) {
         s.testP = m_testP->value();
         s.testPAvailable = m_testP->valid();
@@ -358,16 +363,16 @@ DeviceSnapshot BackendController::snapshot() const
 
     if (m_lineIoManager) {
         s.fireActive = m_lineIoManager->fireActive();
-        s.forcedFireActive = m_lineIoManager->forcedFireActive();
         s.fireInput = m_lineIoManager->fireInput();
-        s.stopActive = m_lineIoManager->stopActive();
-        s.dispatcherActive = m_lineIoManager->dispatcherActive();
+        s.programFireActive = m_lineIoManager->programFireActive();
 
-        s.fireTestActive = m_lineIoManager->fireTestActive();
-        s.fireTestLine = m_lineIoManager->fireTestLine();
+        s.stepTestActive = m_lineIoManager->stepTestActive();
+        s.stepTestLine = m_lineIoManager->stepTestLine();
 
         s.singleLineTestActive = m_lineIoManager->singleLineTestActive();
         s.singleLineTestLine = m_lineIoManager->singleLineTestLine();
+
+        s.noMeasTestActive = m_lineIoManager->noMeasTestActive();
     }
 
     if (m_lines) {
@@ -408,8 +413,10 @@ DeviceSnapshot BackendController::snapshot() const
         s.battery.onBattery = m_batteryController->onBattery();
     }
 
-    if(m_config)
-        s.logLevel= m_config ? m_config->logLevel() : "INFO";
+    if (m_config)
+        s.logLevel = m_config->logLevel();
+    else
+        s.logLevel = "INFO";
 
     return s;
 }
@@ -435,13 +442,35 @@ void BackendController::setupLineIo()
 
     QObject::connect(m_lineIoManager, &LineIoManager::fireChanged,
                      this, [this](bool active) {
-                         log(QString("FIRE changed: %1").arg(active));
+                         log(QString("Пожар: %1").arg(active ? QStringLiteral("АКТИВЕН")
+                                                             : QStringLiteral("СНЯТ")));
                          emit stateChanged();
                      });
 
-    QObject::connect(m_lineIoManager, &LineIoManager::stopChanged,
+    QObject::connect(m_lineIoManager, &LineIoManager::programFireChanged,
                      this, [this](bool active) {
-                         log(QString("STOP changed: %1").arg(active));
+                         log(QString("Программный пожар: %1").arg(active ? QStringLiteral("ВКЛ")
+                                                                         : QStringLiteral("ВЫКЛ")));
+                         emit stateChanged();
+                     });
+
+    QObject::connect(m_lineIoManager, &LineIoManager::singleLineTestActiveChanged,
+                     this, [this](bool) {
+                         emit stateChanged();
+                     });
+
+    QObject::connect(m_lineIoManager, &LineIoManager::stepTestActiveChanged,
+                     this, [this](bool) {
+                         emit stateChanged();
+                     });
+
+    QObject::connect(m_lineIoManager, &LineIoManager::singleLineTestLineChanged,
+                     this, [this](int) {
+                         emit stateChanged();
+                     });
+
+    QObject::connect(m_lineIoManager, &LineIoManager::stepTestLineChanged,
+                     this, [this](int) {
                          emit stateChanged();
                      });
 }
@@ -591,7 +620,7 @@ bool BackendController::setForcedFire(bool on)
     if (!m_lineIoManager)
         return false;
 
-    m_lineIoManager->setForcedFire(on);
+    m_lineIoManager->setProgramFire(on);
 
     emit logMessage(QStringLiteral("Ручной пожарный режим: %1")
                         .arg(on ? QStringLiteral("ВКЛ") : QStringLiteral("ВЫКЛ")));
@@ -604,10 +633,13 @@ bool BackendController::setForcedStop(bool on)
     if (!m_lineIoManager)
         return false;
 
-    m_lineIoManager->setForcedStop(on);
+    if (on) {
+       m_lineIoManager->setProgramFire(false);
+    }
 
-    emit logMessage(QStringLiteral("Ручной режим STOP: %1")
-                        .arg(on ? QStringLiteral("ВКЛ") : QStringLiteral("ВЫКЛ")));
+    emit logMessage(QStringLiteral("Сброс пожара: %1")
+                        .arg(on ? QStringLiteral("ВЫПОЛНЕН")
+                                : QStringLiteral("—")));
     emit stateChanged();
     return true;
 }

@@ -7,7 +7,6 @@
 
 #include "PanelFacade.h"
 #include "systemObjects.h"
-#include "TimeAjst.h"
 #include "line.h"
 #include "linesmodel.h"
 #include "logger.h"
@@ -30,7 +29,6 @@ int main(int argc, char *argv[])
     log(QString("Log level from backend:: %1").arg(panel.logLevel()));
     if (panel.logLevel() != "DEBUG") app.setOverrideCursor(QCursor(Qt::BlankCursor));
 
-    qmlRegisterType<TimeAjst>("App", 1, 0, "TimeAjst");
     qmlRegisterType<Line>("App", 1, 0, "Line");
     qmlRegisterType<LinesModel>("App", 1, 0, "LinesModel");
     qmlRegisterType<Network>("App", 1, 0, "Network");
