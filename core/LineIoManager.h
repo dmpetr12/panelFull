@@ -16,10 +16,14 @@ class LineIoManager : public QObject
     Q_PROPERTY(bool forcedFireActive READ forcedFireActive NOTIFY forcedFireChanged)
     Q_PROPERTY(bool dispatcherActive READ dispatcherActive NOTIFY dispatcherActiveChanged)
     Q_PROPERTY(bool stopActive READ stopActive NOTIFY stopChanged)
+
+    // совместимость со старым UI/API:
     Q_PROPERTY(bool fireTestActive READ fireTestActive NOTIFY fireTestActiveChanged)
     Q_PROPERTY(int  fireTestLine READ fireTestLine NOTIFY fireTestLineChanged)
+
     Q_PROPERTY(bool singleLineTestActive READ singleLineTestActive NOTIFY singleLineTestActiveChanged)
     Q_PROPERTY(int  singleLineTestLine READ singleLineTestLine NOTIFY singleLineTestLineChanged)
+
     Q_PROPERTY(bool fireInput READ fireInput NOTIFY fireChanged)
 
 public:
@@ -31,29 +35,44 @@ public:
 
     Q_INVOKABLE void forceApplyAll();
 
-    // внешние аварийные команды
+    // аварийные команды
     Q_INVOKABLE void setForcedFire(bool on);
     Q_INVOKABLE void setForcedStop(bool on);
 
-    // TestController API
-    Q_INVOKABLE bool requestFireTestStart(int lineIndex);
-    Q_INVOKABLE void requestFireTestStop();
-    bool requestSingleLineTestStart(int lineIndex);
-    void requestSingleLineTestStop();
+    // тест без измерений всех линий
+    Q_INVOKABLE bool requestNoMeasTestStart();
+    Q_INVOKABLE void requestNoMeasTestStop();
 
-    bool fireActive() const {return m_fireInput || m_forcedFireCommand || m_testForceFire;}
+    // тест одной линии с измерением
+    Q_INVOKABLE bool requestSingleLineTestStart(int lineIndex);
+    Q_INVOKABLE void requestSingleLineTestStop();
+
+    // тест всех линий с измерением (пошаговый)
+    Q_INVOKABLE bool requestStepTestStart(int lineIndex);
+    Q_INVOKABLE void requestStepTestStop();
+
+    // совместимость со старым кодом
+    Q_INVOKABLE bool requestFireTestStart(int lineIndex) { return requestStepTestStart(lineIndex); }
+    Q_INVOKABLE void requestFireTestStop() { requestStepTestStop(); }
+
+    bool fireActive() const { return m_fireInput || m_forcedFireCommand; }
     bool forcedFireActive() const { return m_forcedFireCommand; }
     bool stopActive() const { return m_stopInput || m_forcedStopCommand; }
-    bool emergencyActive() const { return fireActive() || stopActive(); }
+    bool emergencyActive() const { return stopActive() || fireActive(); }
 
     bool fireInput() const { return m_fireInput; }
     bool dispatcherActive() const { return m_dispatcherForce; }
 
-    bool fireTestActive() const { return m_fireTestActive; }
-    int fireTestLine() const { return m_fireTestLine; }
+    // совместимость со старым UI/API
+    bool fireTestActive() const { return m_stepTestActive; }
+    int fireTestLine() const { return m_stepTestLine; }
 
     bool singleLineTestActive() const { return m_singleTestActive; }
     int singleLineTestLine() const { return m_singleTestLine; }
+
+    bool noMeasTestActive() const { return m_noMeasTestActive; }
+    bool stepTestActive() const { return m_stepTestActive; }
+    int  stepTestLine() const { return m_stepTestLine; }
 
     void setAlarmLamp(bool on);
 
@@ -63,6 +82,7 @@ signals:
     void stopChanged(bool active);
     void emergencyStop();
 
+    // совместимость
     void fireTestActiveChanged(bool active);
     void forcedFireChanged(bool active);
     void fireTestLineChanged(int lineIndex);
@@ -71,6 +91,15 @@ signals:
     void singleLineTestLineChanged(int lineIndex);
 
 private:
+    enum class Mode {
+        Normal,
+        Stop,
+        Fire,
+        NoMeasTest,
+        SingleLineTest,
+        StepTest
+    };
+
     static constexpr int MAX_MODULES = 7;
     static constexpr int MODULE0 = 0;
 
@@ -89,10 +118,13 @@ private:
     void updateFireStopFromModule0(quint8 bits0);
     void cancelTestsDueToEmergency();
 
+    Mode currentMode() const;
+
     void recomputeDesiredAll();
     void fillFireMode();
-    void fillFireTestMode(int lineIndex);
+    void fillNoMeasTestMode();
     void fillSingleLineTestMode(int lineIndex);
+    void fillStepTestMode(int lineIndex);
     void fillStopMode();
     void fillNormalMode();
 
@@ -135,11 +167,11 @@ private:
 
     bool m_dispatcherForce = false;
 
-    // служебный флаг тестов
-    bool m_testForceFire = false;
+    // тесты
+    bool m_noMeasTestActive = false;
 
-    bool m_fireTestActive = false;
-    int  m_fireTestLine = -1;
+    bool m_stepTestActive = false;
+    int  m_stepTestLine = -1;
 
     bool m_singleTestActive = false;
     int  m_singleTestLine = -1;

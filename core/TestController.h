@@ -1,4 +1,3 @@
-// TestController.h
 #ifndef TESTCONTROLLER_H
 #define TESTCONTROLLER_H
 
@@ -10,13 +9,10 @@
 #include <QJsonObject>
 #include <QFile>
 
-
 #include "linesmodel.h"
 #include "LineIoManager.h"
 
 class ModbusBus;
-
-//extern void log(const QString &msg);
 
 class TestController : public QObject
 {
@@ -31,20 +27,21 @@ public:
 
     enum class Source { None = 0, Schedule = 1, Operator = 2 };
     Q_ENUM(Source)
+
     enum class TestKind { None = 0, Functional = 1, Duration = 2 };
     Q_ENUM(TestKind)
 
-    TestKind currentTestKind() const { return m_currentTestKind; };
+    TestKind currentTestKind() const { return m_currentTestKind; }
 
     void setModel(LinesModel *model)      { m_model = model; }
-    void setIoManager(LineIoManager *io) { m_io = io; }
-    void setMeterFastIntervalMs(int ms)  { m_meterFastIntervalMs = ms; } // сейчас не используется, но оставим
-    void setBus(ModbusBus *bus)          { m_bus = bus; }
+    void setIoManager(LineIoManager *io)  { m_io = io; }
+    void setMeterFastIntervalMs(int ms)   { m_meterFastIntervalMs = ms; }
+    void setBus(ModbusBus *bus)           { m_bus = bus; }
 
     bool testActive() const { return m_active != Active::None; }
     Source testSource() const { return m_source; }
     QDateTime lastLongSystemTest() const { return m_lastLongSystemTest; }
-    bool lastLongTestResult()const{return m_lastLongSystemTestOk;}
+    bool lastLongTestResult() const { return m_lastLongSystemTestOk; }
 
     Q_INVOKABLE void startTestOperator(int lineIndex, int sec);
     Q_INVOKABLE bool startTestScheduleAll(int sec);
@@ -68,7 +65,7 @@ signals:
     void currentTestKindChanged();
 
 private:
-    enum class Active { None, Single, All, FireNoMeasure };
+    enum class Active { None, Single, All, NoMeas };
 
     void startTestInternal(int lineIndex, int sec);
     void stopAnyActiveTest();
@@ -78,8 +75,8 @@ private:
 
     void allLineStatusReturn();
 
-    void beginFireMeasurements(); // переключение ModbusBus в test mode
-    void endFireMeasurements();   // переключение ModbusBus в normal mode
+    void beginFireMeasurements();
+    void endFireMeasurements();
 
     bool isLineTestable(Line *ln) const;
     int  findNextTestableIndex(int fromExclusive) const;
@@ -132,7 +129,7 @@ private:
     QString  m_maintenancePath = "maintenance.json";
     QDateTime m_lastLongSystemTest;
     bool      m_lastLongSystemTestOk = true;
-    TestKind m_currentTestKind = TestKind::None;
+    TestKind  m_currentTestKind = TestKind::None;
 };
 
 #endif // TESTCONTROLLER_H

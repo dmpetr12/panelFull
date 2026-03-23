@@ -83,7 +83,7 @@ void LineIoManager::onInputsUpdated(int moduleIndex, quint8 bits)
     }
 
     // во время тестов входы линий игнорируем
-    if (m_fireTestActive || m_singleTestActive || m_testForceFire)
+    if (m_stepTestActive || m_singleTestActive || m_noMeasTestActive)
         return;
 
     recomputeDesiredAll();
@@ -185,13 +185,47 @@ void LineIoManager::setForcedStop(bool on)
     applyAllModules(true);
 }
 
+bool LineIoManager::requestNoMeasTestStart()
+{
+    if (!m_bus || !m_lines)
+        return false;
+
+    if (emergencyActive())
+        return false;
+
+    cancelTestsDueToEmergency();
+
+    m_noMeasTestActive = true;
+
+    if (m_bus)
+        m_bus->setModeTest();
+
+    recomputeDesiredAll();
+    applyAllModules(true);
+    return true;
+}
+
+void LineIoManager::requestNoMeasTestStop()
+{
+    if (!m_noMeasTestActive)
+        return;
+
+    m_noMeasTestActive = false;
+
+    if (m_bus)
+        m_bus->setModeNormal();
+
+    recomputeDesiredAll();
+    applyAllModules(true);
+}
+
 void LineIoManager::cancelTestsDueToEmergency()
 {
     bool anyChanged = false;
 
-    if (m_fireTestActive) {
-        m_fireTestActive = false;
-        m_fireTestLine = -1;
+    if (m_stepTestActive) {
+        m_stepTestActive = false;
+        m_stepTestLine = -1;
         emit fireTestActiveChanged(false);
         emit fireTestLineChanged(-1);
         anyChanged = true;
@@ -205,8 +239,8 @@ void LineIoManager::cancelTestsDueToEmergency()
         anyChanged = true;
     }
 
-    if (m_testForceFire) {
-        m_testForceFire = false;
+    if (m_noMeasTestActive) {
+        m_noMeasTestActive = false;
         anyChanged = true;
     }
 
@@ -221,15 +255,15 @@ bool LineIoManager::requestSingleLineTestStart(int lineIndex)
 
     if (emergencyActive()) return false;
 
-    if (m_fireTestActive) {
-        m_fireTestActive = false;
-        m_fireTestLine = -1;
+    if (m_stepTestActive) {
+        m_stepTestActive = false;
+        m_stepTestLine = -1;
         stopStepSwichTimers();
         emit fireTestActiveChanged(false);
         emit fireTestLineChanged(-1);
     }
 
-    m_testForceFire = true;
+    m_noMeasTestActive = false;
     m_singleTestActive = true;
     m_singleTestLine = lineIndex;
 
@@ -251,7 +285,6 @@ void LineIoManager::requestSingleLineTestStop()
 
     m_singleTestActive = false;
     m_singleTestLine = -1;
-    m_testForceFire = false;
 
     emit singleLineTestActiveChanged(false);
     emit singleLineTestLineChanged(-1);
@@ -264,7 +297,7 @@ void LineIoManager::requestSingleLineTestStop()
     applyAllModules(true);
 }
 
-bool LineIoManager::requestFireTestStart(int lineIndex)
+bool LineIoManager::requestStepTestStart(int lineIndex)
 {
     if (!m_bus || !m_lines) return false;
     if (lineIndex < 0 || lineIndex >= m_numLines) return false;
@@ -278,11 +311,11 @@ bool LineIoManager::requestFireTestStart(int lineIndex)
         emit singleLineTestLineChanged(-1);
     }
 
+    m_noMeasTestActive = false;
     stopStepSwichTimers();
 
-    m_testForceFire = true;
-    m_fireTestActive = true;
-    m_fireTestLine = lineIndex;
+    m_stepTestActive = true;
+    m_stepTestLine = lineIndex;
     m_twoStepKind = TwoStepKind::Step1;
 
     if (m_bus)
@@ -297,16 +330,15 @@ bool LineIoManager::requestFireTestStart(int lineIndex)
     return true;
 }
 
-void LineIoManager::requestFireTestStop()
+void LineIoManager::requestStepTestStop()
 {
-    if (!m_fireTestActive)
+    if (!m_stepTestActive)
         return;
 
     stopStepSwichTimers();
 
-    m_fireTestActive = false;
-    m_fireTestLine = -1;
-    m_testForceFire = false;
+    m_stepTestActive = false;
+    m_stepTestLine = -1;
 
     if (m_bus)
         m_bus->setModeNormal();
@@ -324,44 +356,76 @@ void LineIoManager::forceApplyAll()
     applyAllModules(true);
 }
 
+LineIoManager::Mode LineIoManager::currentMode() const
+{
+    if (stopActive())
+        return Mode::Stop;
+
+    if (fireActive())
+        return Mode::Fire;
+
+    if (m_noMeasTestActive)
+        return Mode::NoMeasTest;
+
+    if (m_singleTestActive && m_singleTestLine >= 0)
+        return Mode::SingleLineTest;
+
+    if (m_stepTestActive && m_stepTestLine >= 0)
+        return Mode::StepTest;
+
+    return Mode::Normal;
+}
+
 void LineIoManager::recomputeDesiredAll()
 {
     for (int m = 0; m < MAX_MODULES; ++m)
         m_desiredRelays[m] = 0x00;
 
-    // FIRE выше STOP
-    if (fireActive()) {
-        fillFireMode();
-        return;
-    }
-
-    if (stopActive()) {
+    switch (currentMode()) {
+    case Mode::Stop:
         fillStopMode();
-        return;
-    }
+        break;
 
-    if (m_testForceFire) {
-        if (m_fireTestActive && m_fireTestLine >= 0)
-            fillFireTestMode(m_fireTestLine);
-        else
-            fillFireMode();
-        return;
-    }
+    case Mode::Fire:
+        fillFireMode();
+        break;
 
-    if (m_singleTestActive && m_singleTestLine >= 0) {
+    case Mode::NoMeasTest:
+        fillNoMeasTestMode();
+        break;
+
+    case Mode::SingleLineTest:
         fillSingleLineTestMode(m_singleTestLine);
-        return;
+        break;
+
+    case Mode::StepTest:
+        fillStepTestMode(m_stepTestLine);
+        break;
+
+    case Mode::Normal:
+    default:
+        fillNormalMode();
+        break;
     }
 
-    if (m_fireTestActive && m_fireTestLine >= 0) {
-        fillFireTestMode(m_fireTestLine);
-        return;
-    }
-
-    fillNormalMode();
+    setBit(m_desiredRelays[MODULE0], REL_SERV_1, m_alarmLampOn);
 }
 
 void LineIoManager::fillFireMode()
+{
+    setBit(m_desiredRelays[0], REL_SERV_0, true);
+
+    for (int i = 0; i < m_numLines; ++i) {
+        int mod, bMeas, bWork;
+        if (!mapLineToRelayBits(i, mod, bMeas, bWork))
+            continue;
+
+        setMeasOn(m_desiredRelays[mod], bMeas, false);
+        setWorkLineOn(m_desiredRelays[mod], bWork, true);
+    }
+}
+
+void LineIoManager::fillNoMeasTestMode()
 {
     setBit(m_desiredRelays[0], REL_SERV_0, true);
 
@@ -396,7 +460,7 @@ void LineIoManager::fillSingleLineTestMode(int lineIndex)
     setMeasOn(m_desiredRelays[mod], bMeas, true);
 }
 
-void LineIoManager::fillFireTestMode(int lineIndex)
+void LineIoManager::fillStepTestMode(int lineIndex)
 {
     int mod, bMeas, bWork;
     if (!mapLineToRelayBits(lineIndex, mod, bMeas, bWork))
@@ -404,16 +468,16 @@ void LineIoManager::fillFireTestMode(int lineIndex)
 
     switch (m_twoStepKind) {
     case TwoStepKind::Step1:
-        fillFireMode();
+        fillNoMeasTestMode();
         break;
 
     case TwoStepKind::Step2:
-        fillFireMode();
+        fillNoMeasTestMode();
         setMeasOn(m_desiredRelays[mod], bMeas, true);
         break;
 
     case TwoStepKind::Step3:
-        fillFireMode();
+        fillNoMeasTestMode();
         setWorkLineOn(m_desiredRelays[mod], bWork, false);
         setMeasOn(m_desiredRelays[mod], bMeas, true);
         m_twoStepKind = TwoStepKind::None;
@@ -477,10 +541,7 @@ void LineIoManager::applyModuleIfChanged(int moduleIndex, bool force)
     if (!m_bus->isConnected()) return;
     if (moduleIndex < 0 || moduleIndex >= MAX_MODULES) return;
 
-    quint8 desired = m_desiredRelays[moduleIndex];
-
-    if (moduleIndex == MODULE0)
-        setBit(desired, REL_SERV_1, m_alarmLampOn);
+    const quint8 desired = m_desiredRelays[moduleIndex];
 
     if (!force && desired == m_lastSentRelays[moduleIndex])
         return;
@@ -489,7 +550,6 @@ void LineIoManager::applyModuleIfChanged(int moduleIndex, bool force)
     m_lastSentRelays[moduleIndex] = desired;
 }
 
-// сначала идет рабочее реле, потом измерительное
 bool LineIoManager::mapLineToRelayBits(int lineIndex, int &moduleIndex, int &bitMeas, int &bitWork) const
 {
     if (lineIndex < 0)

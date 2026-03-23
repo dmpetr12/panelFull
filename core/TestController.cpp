@@ -1,6 +1,5 @@
-// TestController.cpp
 #include "TestController.h"
-#include "modbusbus.h"   // <-- ВАЖНО: тут полный тип ModbusBus
+#include "modbusbus.h"
 #include "logger.h"
 
 void TestController::setCurrentTestKind(TestKind k)
@@ -22,8 +21,6 @@ TestController::TestController(QObject *parent)
     loadMaintenance();
 }
 
-// ===== API =====
-
 void TestController::startTestOperator(int lineIndex, int sec)
 {
     stopAnyActiveTest();
@@ -42,7 +39,7 @@ bool TestController::startTestScheduleAll(int sec)
     }
 
     if (testActive() && m_source == Source::Schedule && m_currentAllIsLong) {
-        log("⛔ Schedule: запуск запрещён — уже идёт ДЛИННЫЙ тест по расписанию");
+        log("⛔ Schedule: запуск запрещён — уже идёт длинный тест по расписанию");
         return false;
     }
 
@@ -67,19 +64,28 @@ void TestController::startTestNoMeasure(int sec)
 
     log(QString("Тест без измерений на %1 секунд").arg(sec));
 
-    setActive(Active::FireNoMeasure);
-    m_io->setForcedFire(true);
+    setActive(Active::NoMeas);
+    setCurrentTestKind(TestKind::Functional);
+
+    if (!m_io->requestNoMeasTestStart()) {
+        setActive(Active::None);
+        setSource(Source::None);
+        setCurrentTestKind(TestKind::None);
+        return;
+    }
 
     m_fireNoMeasureTimer = new QTimer(this);
     m_fireNoMeasureTimer->setSingleShot(true);
-    setCurrentTestKind(TestKind::Functional);
 
     connect(m_fireNoMeasureTimer, &QTimer::timeout, this, [this]() {
-        m_io->setForcedFire(false);
+        if (m_io)
+            m_io->requestNoMeasTestStop();
+
         log("Тест без измерений завершён");
         cleanupFireNoMeasureTimer();
         setActive(Active::None);
         setSource(Source::None);
+        setCurrentTestKind(TestKind::None);
     });
 
     m_fireNoMeasureTimer->start(sec * 1000);
@@ -92,26 +98,33 @@ void TestController::stopTest(int lineIndex)
     log("Тест принудительно завершён");
 }
 
-// ===== internal =====
-
 void TestController::startTestInternal(int lineIndex, int sec)
 {
     if (!m_model || !m_io) return;
-    int i = calcAllLinesTestDurationSec();
-    if (lineIndex == -1)
-        sec = i;//  если старт всех линий то на время 60+N*10
-    else if(lineIndex > -1){
-            if (sec < minSecTestDuration) sec = minSecTestDuration;
-        }
-    else if(sec < i) sec = i;
-    if (lineIndex < -2 || lineIndex >= m_model->rowCount()) return;
+
+    const int fullSec = calcAllLinesTestDurationSec();
+
+    if (lineIndex == -1) {
+        sec = fullSec;
+    } else if (lineIndex > -1) {
+        if (sec < minSecTestDuration)
+            sec = minSecTestDuration;
+    } else if (sec < fullSec) {
+        sec = fullSec;
+    }
+
+    if (lineIndex < -2 || lineIndex >= m_model->rowCount())
+        return;
 
     const int durationMs = sec * 1000;
 
     beginFireMeasurements();
 
-    if (lineIndex >= 0) startSingleLineTest(lineIndex, durationMs);
-    else                startAllLinesTest(durationMs);
+    if (lineIndex >= 0)
+        startSingleLineTest(lineIndex, durationMs);
+    else
+        startAllLinesTest(durationMs);
+
     setCurrentTestKind((sec >= m_longThresholdMin * 60) ? TestKind::Duration : TestKind::Functional);
 }
 
@@ -124,7 +137,8 @@ void TestController::stopAnyActiveTest()
 
     if (m_allTestRunning) {
         m_allTestRunning = false;
-        if (m_allTestTimer && m_allTestTimer->isActive()) m_allTestTimer->stop();
+        if (m_allTestTimer && m_allTestTimer->isActive())
+            m_allTestTimer->stop();
     }
 
     if (m_fireNoMeasureTimer) {
@@ -132,7 +146,13 @@ void TestController::stopAnyActiveTest()
         cleanupFireNoMeasureTimer();
     }
 
-    if (m_active != Active::FireNoMeasure) {
+    if (m_io) {
+        m_io->requestSingleLineTestStop();
+        m_io->requestStepTestStop();
+        m_io->requestNoMeasTestStop();
+    }
+
+    if (m_active != Active::NoMeas) {
         endFireMeasurements();
         allLineStatusReturn();
     }
@@ -142,10 +162,6 @@ void TestController::stopAnyActiveTest()
     setSource(Source::None);
     setMeasuredLine(-1);
     setCurrentTestKind(TestKind::None);
-
-    if (m_io) {
-        m_io->setForcedFire(false);
-    }
 }
 
 void TestController::cleanupSingleTimer()
@@ -168,7 +184,8 @@ void TestController::allLineStatusReturn()
     const int count = m_model->rowCount();
     for (int i = 0; i < count; ++i) {
         Line *ln = m_model->line(i);
-        if (ln && ln->status() == Line::Test) ln->setStatus(ln->oldStatus());
+        if (ln && ln->status() == Line::Test)
+            ln->setStatus(ln->oldStatus());
     }
 }
 
@@ -225,13 +242,13 @@ void TestController::startSingleLineTest(int lineIndex, int durationMs)
     if (!m_io->requestSingleLineTestStart(lineIndex)) {
         line->setStatus(line->oldStatus());
         endFireMeasurements();
-        m_io->setForcedFire(false);
         log(QString("Тест линии %1 не запустился").arg(lineIndex));
         setActive(Active::None);
         setSource(Source::None);
         setCurrentTestKind(TestKind::None);
         return;
     }
+
     setMeasuredLine(lineIndex);
 
     m_singleTestTimer = new QTimer(this);
@@ -248,13 +265,13 @@ void TestController::startSingleLineTest(int lineIndex, int durationMs)
                 .arg(line->power())
                 .arg(line->tolerance())
                 .arg(ok ? "OK" : "Неисправность"));
+
         if (m_model && !m_linesSavePath.isEmpty())
             m_model->saveToFile(m_linesSavePath);
 
         if (m_io) {
             m_io->requestSingleLineTestStop();
             setMeasuredLine(-1);
-            m_io->setForcedFire(false);
         }
 
         cleanupSingleTimer();
@@ -281,7 +298,7 @@ void TestController::startAllLinesTest(int durationMs)
     }
 
     const int count = m_model->rowCount();
-    int countFact = 0; //считаем сколько на самом деле тестить ламп
+    int countFact = 0;
     for (int i = 0; i < count; ++i) {
         Line *ln = m_model->line(i);
         if (isLineTestable(ln)) {
@@ -297,19 +314,20 @@ void TestController::startAllLinesTest(int durationMs)
     m_allTestRunning = true;
     m_allTestCurrentIndex = first;
 
-    int warmupMs = durationMs - countFact * m_shotTimeMesure*1000;//+2 запас даем 4 с перед окончанием на неточность
-    if (warmupMs < m_shotTimeWarm*1000) warmupMs = m_shotTimeWarm*1000;// минимальное время прогрева 10с, маловато надеюсь не меньше 30с (если линий много поставишь не меньше двух минут короткий тест)
+    int warmupMs = durationMs - countFact * m_shotTimeMesure * 1000;
+    if (warmupMs < m_shotTimeWarm * 1000)
+        warmupMs = m_shotTimeWarm * 1000;
 
-    if (!m_io->requestFireTestStart(m_allTestCurrentIndex)) {
+    if (!m_io->requestStepTestStart(m_allTestCurrentIndex)) {
         m_allTestRunning = false;
         endFireMeasurements();
         allLineStatusReturn();
         setActive(Active::None);
         setSource(Source::None);
         setCurrentTestKind(TestKind::None);
-        m_io->setForcedFire(false);
         return;
     }
+
     setMeasuredLine(m_allTestCurrentIndex);
 
     m_allTestTimer->start(warmupMs);
@@ -318,7 +336,8 @@ void TestController::startAllLinesTest(int durationMs)
 
 void TestController::handleAllLinesStep()
 {
-    if (!m_allTestRunning || !m_model || !m_io) return;
+    if (!m_allTestRunning || !m_model || !m_io)
+        return;
 
     const int idx = m_allTestCurrentIndex;
     Line *line = (idx >= 0 && idx < m_model->rowCount()) ? m_model->line(idx) : nullptr;
@@ -333,36 +352,38 @@ void TestController::handleAllLinesStep()
                 .arg(line->description())
                 .arg(line->mpower())
                 .arg(line->power())
-                .arg(m_currentAllIsLong ? line->tolerance()+m_longTolBonus : line->tolerance())
-                .arg(ok ? "OK" : "Неисправ."));
+                .arg(m_currentAllIsLong ? line->tolerance() + m_longTolBonus : line->tolerance())
+                .arg(ok ? "OK" : "Неиспр."));
     }
-
 
     const int nextIdx = findNextTestableIndex(m_allTestCurrentIndex);
     if (nextIdx < 0) {
-        m_io->requestFireTestStop();
+        m_io->requestStepTestStop();
         log("✅ ТЕСТ всех линий завершён");
         m_allTestRunning = false;
-        m_io->setForcedFire(false);
         endFireMeasurements();
         allLineStatusReturn();
         setMeasuredLine(-1);
         setActive(Active::None);
         setSource(Source::None);
         setCurrentTestKind(TestKind::None);
-        if (m_currentAllIsLong) recordLongSystemTestResult(m_currentAllAllOk);
-        if (m_model && !m_linesSavePath.isEmpty()) m_model->saveToFile(m_linesSavePath);
+
+        if (m_currentAllIsLong)
+            recordLongSystemTestResult(m_currentAllAllOk);
+
+        if (m_model && !m_linesSavePath.isEmpty())
+            m_model->saveToFile(m_linesSavePath);
+
         m_currentAllIsLong = false;
         return;
     }
 
     m_allTestCurrentIndex = nextIdx;
 
-    if (!m_io->requestFireTestStart(nextIdx)) {
-        m_io->requestFireTestStop();
-        log("⚠️ Не удалось включить MEAS для следующей линии, прерываем тест");
+    if (!m_io->requestStepTestStart(nextIdx)) {
+        m_io->requestStepTestStop();
+        log("⚠️ Не удалось включить измерение для следующей линии, прерываем тест");
         m_allTestRunning = false;
-        m_io->setForcedFire(false);
         endFireMeasurements();
         allLineStatusReturn();
         setActive(Active::None);
@@ -371,8 +392,8 @@ void TestController::handleAllLinesStep()
         setMeasuredLine(-1);
         return;
     }
-    setMeasuredLine(m_allTestCurrentIndex);
 
+    setMeasuredLine(m_allTestCurrentIndex);
     m_allTestTimer->start(m_shotTimeMesure * 1000);
 }
 
@@ -381,8 +402,10 @@ bool TestController::checkLinePowerInternal(Line *line) const
     const double ref  = line->mpower();
     const double meas = line->power();
     if (ref <= 0.0) return false;
-    double tol  = line->tolerance();
-    if (m_currentAllIsLong && m_active == Active::All) tol = std::min(50.0, tol + m_longTolBonus);
+
+    double tol = line->tolerance();
+    if (m_currentAllIsLong && m_active == Active::All)
+        tol = std::min(50.0, tol + m_longTolBonus);
 
     const double diff    = std::fabs(meas - ref);
     const double maxDiff = ref * tol / 100.0;
@@ -435,8 +458,8 @@ void TestController::loadMaintenance()
     const auto doc = QJsonDocument::fromJson(f.readAll());
     f.close();
     if (!doc.isObject()) return;
-    auto obj = doc.object();
 
+    const auto obj = doc.object();
     m_lastLongSystemTest = QDateTime::fromString(obj.value("lastLongSystemTest").toString(), Qt::ISODate);
     m_lastLongSystemTestOk = obj.value("lastLongSystemTestOk").toBool(true);
 }
@@ -452,5 +475,5 @@ int TestController::calcAllLinesTestDurationSec() const
             countFact++;
     }
 
-    return (countFact-1) * m_shotTimeMesure + m_shotTimeWarm;
+    return (countFact - 1) * m_shotTimeMesure + m_shotTimeWarm;
 }
