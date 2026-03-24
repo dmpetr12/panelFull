@@ -167,7 +167,7 @@ private:
     int  m_singleTestLine = -1;
 
     QTimer *m_StepSwich = nullptr;
-    int m_twoStepDelayMs = 200;
+    int m_twoStepDelayMs = 300;
     int m_lastMes = -1;
 
     bool m_alarmLampOn = false;

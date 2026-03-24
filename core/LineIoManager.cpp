@@ -384,35 +384,16 @@ void LineIoManager::fillFireMode()
 
 void LineIoManager::fillNoMeasTestMode()
 {
-    setBit(m_desiredRelays[0], REL_SERV_0, true);
-
-    for (int i = 0; i < m_numLines; ++i) {
-        int mod, bMeas, bWork;
-        if (!mapLineToRelayBits(i, mod, bMeas, bWork))
-            continue;
-
-        setMeasOn(m_desiredRelays[mod], bMeas, false);
-        setWorkLineOn(m_desiredRelays[mod], bWork, true);
-    }
+    fillFireMode();
 }
 
 void LineIoManager::fillSingleLineTestMode(int lineIndex)
 {
-    setBit(m_desiredRelays[0], REL_SERV_0, true);
-
-    for (int i = 0; i < m_numLines; ++i) {
-        int mod, bMeas, bWork;
-        if (!mapLineToRelayBits(i, mod, bMeas, bWork))
-            continue;
-
-        setMeasOn(m_desiredRelays[mod], bMeas, false);
-        setWorkLineOn(m_desiredRelays[mod], bWork, false);
-    }
+    fillFireMode();
 
     int mod, bMeas, bWork;
     if (!mapLineToRelayBits(lineIndex, mod, bMeas, bWork))
         return;
-
     setWorkLineOn(m_desiredRelays[mod], bWork, false);
     setMeasOn(m_desiredRelays[mod], bMeas, true);
 }

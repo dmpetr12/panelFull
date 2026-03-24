@@ -183,14 +183,12 @@ void BackendController::createObjects()
 void BackendController::setupConfig()
 {
     if (!m_config->load("config.json")) {
-        qWarning() << "config.json not found/invalid, using defaults";
+        emit logMessage(QStringLiteral( "config.json not found/invalid, using defaults"));
     }
 
-    qWarning() << "CONFIG:"
-               << "numLines=" << m_config->numLines()
-               << "maxRelayModules=" << m_config->maxRelayModules()
-               << "timeAuto=" << m_config->timeAuto()
-               << "timeTest=" << m_config->timeTest();
+    emit logMessage(QStringLiteral("CONFIG: numLines=%1 maxRelayModules=%2 timeAuto=%3 timeTest=%4").
+        arg(m_config->numLines()).arg( m_config->maxRelayModules()).
+            arg(m_config->timeAuto()).arg(m_config->timeTest()));
 }
 
 void BackendController::setupLines()
