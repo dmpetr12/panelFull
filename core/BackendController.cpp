@@ -17,6 +17,12 @@
 #include <windows.h>
 #endif
 
+#ifndef _WIN32
+#include <time.h>
+#include <errno.h>
+#include <string.h>
+#endif
+
 
 #include "AppConfig.h"
 #include "PasswordManager.h"
@@ -839,7 +845,7 @@ QVariantMap BackendController::testSummary() const
 
 bool BackendController::setSystemTime(qint64 msec)
 {
-    const QDateTime dt = QDateTime::fromMSecsSinceEpoch(msec);
+    const QDateTime dt = QDateTime::fromMSecsSinceEpoch(msec, Qt::LocalTime);
     const QString iso = dt.toString("yyyy-MM-dd HH:mm:ss");
 
     log(QString("setSystemTime requested: %1").arg(iso));
@@ -866,46 +872,42 @@ bool BackendController::setSystemTime(qint64 msec)
     return true;
 
 #else
-    QProcess p1;
-    p1.start("timedatectl", {"set-ntp", "false"});
-    if (!p1.waitForFinished(3000)) {
-        log("set-ntp false timeout");
+    if (!dt.isValid()) {
+        log(QString("setSystemTime failed: invalid datetime, msec=%1").arg(msec));
         return false;
     }
 
-    const QString err1 = QString::fromUtf8(p1.readAllStandardError()).trimmed();
-    log(QString("set-ntp false exit=%1 err='%2'")
-            .arg(p1.exitCode())
-            .arg(err1));
-
-    if (p1.exitCode() != 0)
-        return false;
-
-    QProcess p2;
-    p2.start("timedatectl", {"set-time", iso});
-    if (!p2.waitForFinished(3000)) {
-        log("set-time timeout");
+    const qint64 secs = dt.toSecsSinceEpoch();
+    if (secs <= 0) {
+        log(QString("setSystemTime failed: invalid epoch seconds=%1").arg(secs));
         return false;
     }
 
-    const QString err2 = QString::fromUtf8(p2.readAllStandardError()).trimmed();
-    log(QString("set-time exit=%1 err='%2'")
-            .arg(p2.exitCode())
-            .arg(err2));
+    struct timespec ts;
+    ts.tv_sec = static_cast<time_t>(secs);
+    ts.tv_nsec = 0;
 
-    if (p2.exitCode() != 0)
+    if (::clock_settime(CLOCK_REALTIME, &ts) != 0) {
+        const int err = errno;
+        log(QString("clock_settime failed errno=%1 err='%2'")
+                .arg(err)
+                .arg(QString::fromUtf8(strerror(err))));
         return false;
+    }
 
-    QProcess p3;
-    p3.start("timedatectl", {"set-ntp", "true"});
-    p3.waitForFinished(3000);
+    log(QString("System time updated successfully (Linux direct): %1").arg(iso));
 
-    const QString err3 = QString::fromUtf8(p3.readAllStandardError()).trimmed();
-    log(QString("set-ntp true exit=%1 err='%2'")
-            .arg(p3.exitCode())
-            .arg(err3));
+    QProcess p;
+    p.start("hwclock", {"--systohc"});
+    if (!p.waitForFinished(3000)) {
+        log("hwclock --systohc timeout");
+    } else {
+        const QString err = QString::fromUtf8(p.readAllStandardError()).trimmed();
+        log(QString("hwclock --systohc exit=%1 err='%2'")
+                .arg(p.exitCode())
+                .arg(err));
+    }
 
-    log(QString("System time updated successfully (Linux): %1").arg(iso));
     return true;
 #endif
 }
