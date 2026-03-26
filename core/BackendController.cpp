@@ -575,6 +575,23 @@ void BackendController::setupConnections()
         QObject::connect(m_modbusTcpServer, &ModbusTcpServer::logMessage,
                          this, &BackendController::logMessage);
     }
+
+    connect(m_modbusSlave, &ModbusRtuSlave::errorOccurred,
+            this, [this](const QString &msg) {
+                emit logMessage(msg);
+            });
+
+    connect(m_modbusSlave, &ModbusRtuSlave::serverOffline,
+            this, [this](const QString &reason) {
+                emit logMessage(reason.isEmpty()
+                                ? QStringLiteral("Modbus RTU сервер недоступен")
+                                : QStringLiteral("Modbus RTU сервер недоступен: %1").arg(reason));
+            });
+
+    connect(m_modbusSlave, &ModbusRtuSlave::serverOnline,
+            this, [this]() {
+                emit logMessage(QStringLiteral("Связь Modbus RTU сервера восстановлена"));
+            });
 }
 
 void BackendController::applyInitialState()

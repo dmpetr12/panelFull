@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QVector>
+#include <QTimer>
 #include <QSerialPort>
 #include <QtSerialBus/QModbusDataUnit>
 
@@ -26,6 +27,14 @@ public:
     void stop();
 
     bool isRunning() const;
+    void recreateServer();
+    void scheduleReconnect(const QString &reason);
+    void tryReconnect();
+
+signals:
+    void errorOccurred(const QString &message);
+    void serverOffline(const QString &reason);
+    void serverOnline();
 
 private slots:
     void onDataWritten(QModbusDataUnit::RegisterType table, int address, int size);
@@ -39,4 +48,15 @@ private:
     BackendController *m_backend = nullptr;
     QModbusRtuSerialServer *m_server = nullptr;
     QVector<quint16> m_inputCache;
+
+    QString m_portName;
+    int m_baudRate = 9600;
+    QSerialPort::Parity m_parity = QSerialPort::EvenParity;
+    QSerialPort::DataBits m_dataBits = QSerialPort::Data8;
+    QSerialPort::StopBits m_stopBits = QSerialPort::OneStop;
+    int m_slaveId = 1;
+
+    bool m_wantRunning = false;
+    bool m_online = false;
+    QTimer m_reconnect;
 };

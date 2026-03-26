@@ -13,21 +13,82 @@
 ModbusRtuSlave::ModbusRtuSlave(BackendController *backend, QObject *parent)
     : QObject(parent)
     , m_backend(backend)
-    , m_server(new QModbusRtuSerialServer(this))
+    , m_server(nullptr)
     , m_inputCache(ModbusMap::InputRegisterCount, 0)
 {
-    connect(m_server, &QModbusServer::dataWritten,
-            this, &ModbusRtuSlave::onDataWritten);
+    recreateServer();
 
     auto *timer = new QTimer(this);
     timer->setInterval(500);
     connect(timer, &QTimer::timeout, this, &ModbusRtuSlave::refreshInputRegisters);
     timer->start();
+
+    m_reconnect.setInterval(2000);
+    m_reconnect.setSingleShot(false);
+    connect(&m_reconnect, &QTimer::timeout, this, &ModbusRtuSlave::tryReconnect);
 }
 
 ModbusRtuSlave::~ModbusRtuSlave()
 {
     stop();
+}
+
+void ModbusRtuSlave::recreateServer()
+{
+    if (m_server) {
+        m_server->disconnectDevice();
+        m_server->deleteLater();
+        m_server = nullptr;
+    }
+
+    m_server = new QModbusRtuSerialServer(this);
+
+    connect(m_server, &QModbusServer::dataWritten,
+            this, &ModbusRtuSlave::onDataWritten);
+
+    connect(m_server, &QModbusDevice::stateChanged, this,
+            [this](QModbusDevice::State state) {
+                if (state == QModbusDevice::ConnectedState) {
+                    m_reconnect.stop();
+
+                    if (!m_online) {
+                        m_online = true;
+                        emit serverOnline();
+                    }
+                } else if (state == QModbusDevice::UnconnectedState) {
+                    if (m_online) {
+                        m_online = false;
+                        emit serverOffline(m_server ? m_server->errorString() : QString());
+                    }
+
+                    if (m_wantRunning && !m_reconnect.isActive())
+                        m_reconnect.start();
+                }
+            });
+
+    connect(m_server, &QModbusDevice::errorOccurred, this,
+            [this](QModbusDevice::Error error) {
+                if (error == QModbusDevice::NoError)
+                    return;
+
+                const QString reason = m_server ? m_server->errorString()
+                                                : QStringLiteral("unknown error");
+
+                emit errorOccurred(QStringLiteral("Modbus RTU server error on %1: %2")
+                                       .arg(m_portName, reason));
+
+                switch (error) {
+                case QModbusDevice::ConnectionError:
+                case QModbusDevice::ReadError:
+                case QModbusDevice::WriteError:
+                case QModbusDevice::TimeoutError:
+                case QModbusDevice::UnknownError:
+                    scheduleReconnect(reason);
+                    break;
+                default:
+                    break;
+                }
+            });
 }
 
 bool ModbusRtuSlave::start(const QString &portName,
@@ -37,31 +98,51 @@ bool ModbusRtuSlave::start(const QString &portName,
                            QSerialPort::StopBits stopBits,
                            int slaveId)
 {
+    m_portName = portName;
+    m_baudRate = baudRate;
+    m_parity = parity;
+    m_dataBits = dataBits;
+    m_stopBits = stopBits;
+    m_slaveId = slaveId;
+    m_wantRunning = true;
+
+    if (!m_server)
+        recreateServer();
+
     if (m_server->state() != QModbusDevice::UnconnectedState)
         m_server->disconnectDevice();
 
     setupServerMap();
 
-    m_server->setConnectionParameter(QModbusDevice::SerialPortNameParameter, portName);
-    m_server->setConnectionParameter(QModbusDevice::SerialParityParameter, parity);
-    m_server->setConnectionParameter(QModbusDevice::SerialBaudRateParameter, baudRate);
-    m_server->setConnectionParameter(QModbusDevice::SerialDataBitsParameter, dataBits);
-    m_server->setConnectionParameter(QModbusDevice::SerialStopBitsParameter, stopBits);
+    m_server->setConnectionParameter(QModbusDevice::SerialPortNameParameter, m_portName);
+    m_server->setConnectionParameter(QModbusDevice::SerialParityParameter, m_parity);
+    m_server->setConnectionParameter(QModbusDevice::SerialBaudRateParameter, m_baudRate);
+    m_server->setConnectionParameter(QModbusDevice::SerialDataBitsParameter, m_dataBits);
+    m_server->setConnectionParameter(QModbusDevice::SerialStopBitsParameter, m_stopBits);
 
-    m_server->setServerAddress(slaveId);
+    m_server->setServerAddress(m_slaveId);
 
     if (!m_server->connectDevice()) {
-        log(QString("Modbus RTU slave start failed:%1").arg(m_server->errorString()));
+        const QString msg = QString("Modbus RTU slave start failed: %1").arg(m_server->errorString());
+        log(msg);
+        emit errorOccurred(msg);
+
+        if (!m_reconnect.isActive())
+            m_reconnect.start();
+
         return false;
     }
 
     refreshInputRegisters();
-    log(QString("Modbus RTU slave started on %1  %2").arg(portName).arg(slaveId));
+    log(QString("Modbus RTU slave started on %1 %2").arg(m_portName).arg(m_slaveId));
     return true;
 }
 
 void ModbusRtuSlave::stop()
 {
+    m_wantRunning = false;
+    m_reconnect.stop();
+
     if (m_server)
         m_server->disconnectDevice();
 }
@@ -131,4 +212,32 @@ void ModbusRtuSlave::onDataWritten(QModbusDataUnit::RegisterType table, int addr
     }
 
     refreshInputRegisters();
+}
+
+void ModbusRtuSlave::scheduleReconnect(const QString &reason)
+{
+    if (m_server && m_server->state() != QModbusDevice::UnconnectedState)
+        m_server->disconnectDevice();
+
+    if (m_online) {
+        m_online = false;
+        emit serverOffline(reason);
+    }
+
+    if (m_wantRunning && !m_reconnect.isActive())
+        m_reconnect.start();
+}
+
+void ModbusRtuSlave::tryReconnect()
+{
+    if (!m_wantRunning)
+        return;
+
+    if (isRunning()) {
+        m_reconnect.stop();
+        return;
+    }
+
+    recreateServer();
+    start(m_portName, m_baudRate, m_parity, m_dataBits, m_stopBits, m_slaveId);
 }
