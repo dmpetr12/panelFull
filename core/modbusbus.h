@@ -105,6 +105,10 @@ private:
     void clearQueues();
     void pump();
     void sendRequest(const Request &r);
+    void recreateClient();
+    void scheduleReconnect(const QString &reason);
+    void handleTransportFailure(const QString &reason);
+    void clearPendingWrites();
     static const char* reqTypeName(ModbusBus::ReqType t) {
         switch (t) {
         case ModbusBus::ReqType::WriteCoil:     return "WriteCoil (FC05)";
@@ -115,6 +119,19 @@ private:
         case ModbusBus::ReqType::ReadInputRegs: return "ReadInputRegs (FC04)";
         }
         return "?";
+    }
+    static bool sameHighTarget(const ModbusBus::Request &a, const ModbusBus::Request &b)
+    {
+        if (a.type != b.type) return false;
+        if (a.slaveAddr != b.slaveAddr)return false;
+        switch (a.type) {
+        case ModbusBus::ReqType::WriteCoil:
+            return a.coilIndex == b.coilIndex;
+        case ModbusBus::ReqType::WriteCoils8:
+            return a.start == b.start && a.count == b.count;
+        default:
+            return false;
+        }
     }
 
     static bool samePeriodic(const Request& a, const Request& b);
@@ -167,7 +184,7 @@ private:
     Mode m_mode = Mode::Normal;
 
     QTimer m_tickNormal;   // 1 сек
-    QTimer m_tickTestFast; // 200 мс (тестовый измеритель)
+    QTimer m_tickTestFast; // 500 мс (тестовый измеритель)
     QTimer m_tickTestFire; // 500 мс (пожарный модуль inputs)
 
     QTimer m_reconnect;

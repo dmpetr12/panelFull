@@ -12,6 +12,7 @@
 #include <QStorageInfo>
 #include <QDateTime>
 #include <algorithm>
+#include <QFileInfo>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -311,6 +312,7 @@ void BackendController::setupSerialWatcher()
     const QString portName = m_config->serialPort();
 
     log(QString("[BACKEND] Using fixed internal RS485 port: %1").arg(portName));
+    log(QString("[BACKEND] Internal RS485 canonical path: %1").arg(QFileInfo(portName).canonicalFilePath()));
 
     m_bus->disconnectDevice();
     m_bus->setPortName(portName);

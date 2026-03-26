@@ -12,20 +12,15 @@ ModbusBus::ModbusBus(AppConfig *config, QObject *parent)
     : QObject(parent)
     , m_config(config)
 {
-    m_modbus = new QModbusRtuSerialClient(this);
 
-    connect(m_modbus, &QModbusClient::stateChanged,
-            this, &ModbusBus::onStateChanged);
-    connect(m_modbus, &QModbusClient::errorOccurred,
-            this, &ModbusBus::onErrorOccurred);
-
+    recreateClient();
     // NORMAL tick (1 sec)
     m_tickNormal.setInterval(1000);
     m_tickNormal.setSingleShot(false);
     connect(&m_tickNormal, &QTimer::timeout, this, &ModbusBus::normalTick);
 
-    // TEST: fast meter tick (200 ms)
-    m_tickTestFast.setInterval(200);
+    // TEST: fast meter tick (500 ms)
+    m_tickTestFast.setInterval(500);
     m_tickTestFast.setSingleShot(false);
     connect(&m_tickTestFast, &QTimer::timeout, this, &ModbusBus::testFastTick);
 
@@ -38,17 +33,21 @@ ModbusBus::ModbusBus(AppConfig *config, QObject *parent)
     m_reconnect.setSingleShot(false);
 
     connect(&m_reconnect, &QTimer::timeout, this, [this](){
-        if (!m_wantConnected) return;
-        if (isConnected()) { m_reconnect.stop(); return; }
+        if (!m_wantConnected)
+            return;
 
-        // на всякий случай сбросить состояние
-        if (m_modbus && m_modbus->state() != QModbusDevice::UnconnectedState)
-            m_modbus->disconnectDevice();
+        if (isConnected()) {
+            m_reconnect.stop();
+            return;
+        }
 
+        recreateClient();
         setupDevice();
 
-        if (m_modbus && !m_modbus->connectDevice()) {
-            emit errorOccurred(QStringLiteral("Reconnect failed: %1").arg(m_modbus->errorString()));
+        if (!m_modbus->connectDevice()) {
+            emit errorOccurred(QStringLiteral("Reconnect failed on %1: %2")
+                                   .arg(m_portName, m_modbus->errorString()));
+            return;
         }
     });
 }
@@ -58,6 +57,22 @@ ModbusBus::~ModbusBus()
     stopModeTimers();
     if (m_modbus)
         m_modbus->disconnectDevice();
+}
+
+void ModbusBus::recreateClient()
+{
+    if (m_modbus) {
+        m_modbus->disconnectDevice();
+        m_modbus->deleteLater();
+        m_modbus = nullptr;
+    }
+
+    m_modbus = new QModbusRtuSerialClient(this);
+
+    connect(m_modbus, &QModbusClient::stateChanged,
+            this, &ModbusBus::onStateChanged);
+    connect(m_modbus, &QModbusClient::errorOccurred,
+            this, &ModbusBus::onErrorOccurred);
 }
 
 void ModbusBus::setPortName(const QString &portName) { m_portName = portName; }
@@ -90,7 +105,7 @@ void ModbusBus::setupDevice()
     m_modbus->setConnectionParameter(QModbusDevice::SerialParityParameter, QVariant::fromValue(int(QSerialPort::NoParity)));
     m_modbus->setConnectionParameter(QModbusDevice::SerialStopBitsParameter, QVariant::fromValue(int(QSerialPort::OneStop)));
 
-    m_modbus->setTimeout(m_config->modbusRequestTimeout());
+    m_modbus->setTimeout(m_timeoutMs);
     m_modbus->setNumberOfRetries(m_retries);
 }
 
@@ -121,6 +136,37 @@ void ModbusBus::disconnectDevice()
 
     if (m_modbus)
         m_modbus->disconnectDevice();
+}
+
+void ModbusBus::scheduleReconnect(const QString &reason)
+{
+    stopModeTimers();
+    clearQueues();
+    m_busy = false;
+
+    if (m_busOnline) {
+        m_busOnline = false;
+        emit busOffline(reason);
+    }
+
+    if (m_modbus && m_modbus->state() != QModbusDevice::UnconnectedState)
+        m_modbus->disconnectDevice();
+
+    if (m_wantConnected && !m_reconnect.isActive())
+        m_reconnect.start();
+}
+
+void ModbusBus::handleTransportFailure(const QString &reason)
+{
+    emit errorOccurred(QStringLiteral("Modbus transport failure on %1: %2")
+                           .arg(m_portName, reason));
+
+    if (m_reconnect.isActive())
+        return;
+
+    recreateClient();
+    setupDevice();
+    scheduleReconnect(reason);
 }
 
 void ModbusBus::onStateChanged(QModbusDevice::State state)
@@ -161,9 +207,25 @@ void ModbusBus::onStateChanged(QModbusDevice::State state)
 
 void ModbusBus::onErrorOccurred(QModbusDevice::Error error)
 {
-    if (error == QModbusDevice::NoError) return;
+    if (error == QModbusDevice::NoError)
+        return;
 
-    if (m_wantConnected && !isConnected())
+    QString reason = m_modbus ? m_modbus->errorString() : QStringLiteral("unknown error");
+
+    switch (error) {
+    case QModbusDevice::ConnectionError:
+    case QModbusDevice::ReadError:
+    case QModbusDevice::WriteError:
+    case QModbusDevice::TimeoutError:
+    case QModbusDevice::UnknownError:
+        handleTransportFailure(reason);
+        return;
+
+    default:
+        break;
+    }
+
+    if (m_wantConnected && !m_reconnect.isActive())
         m_reconnect.start();
 }
 
@@ -198,6 +260,7 @@ void ModbusBus::setModeNormal()
     m_mode = Mode::Normal;
 
     // срежем хвост тестовых запросов, но High (команды реле) не трогаем
+    clearPendingWrites();
     m_qNorm.clear();
     m_qLow.clear();
 
@@ -210,6 +273,7 @@ void ModbusBus::setModeTest()
     m_mode = Mode::Test;
 
     // срежем хвост обычных опросов
+    clearPendingWrites();
     m_qNorm.clear();
     m_qLow.clear();
 
@@ -220,6 +284,8 @@ void ModbusBus::setModeTest()
 void ModbusBus::normalTick()
 {
     if (!isConnected() || m_relayModuleCount <= 0)
+        return;
+    if (m_qHigh.size() > 4 || m_qNorm.size() > 8 || m_qLow.size() > 8)
         return;
 
     // 1) ВХОДА всех модулей (1..8) — раз в 1 сек
@@ -264,6 +330,8 @@ void ModbusBus::normalTick()
 void ModbusBus::testFireTick()
 {
     if (!isConnected() || m_relayModuleCount <= 0)
+        return;
+    if (m_qHigh.size() > 4 || m_qNorm.size() > 8)
         return;
 
     // Только модуль 0 (ПОЖАР) => slave = base + 0
@@ -354,19 +422,11 @@ void ModbusBus::setRelayGlobal(int index, bool on)
 
 void ModbusBus::setAllRelaysOff()
 {
-    if (m_relayModuleCount <= 0) return;
+    if (m_relayModuleCount <= 0)
+        return;
 
-    for (int m = 0; m < m_relayModuleCount; ++m) {
-        int slaveAddr = m_relayBaseAddr + m;
-        for (int coil = 0; coil < 8; ++coil) {
-            Request r;
-            r.type = ReqType::WriteCoil;
-            r.slaveAddr = slaveAddr;
-            r.coilIndex = coil;
-            r.coilOn = false;
-            enqueueHigh(r);
-        }
-    }
+    for (int m = 0; m < m_relayModuleCount; ++m)
+        setModuleRelaysBits(m, 0x00);
 }
 
 void ModbusBus::setModuleRelaysBits(int moduleIndex, quint8 bits)
@@ -415,9 +475,27 @@ bool ModbusBus::samePeriodic(const Request& a, const Request& b)
            && a.moduleIndex == b.moduleIndex
            && a.meterKind == b.meterKind;
 }
+void ModbusBus::clearPendingWrites()
+{
+    for (auto it = m_qHigh.begin(); it != m_qHigh.end(); ) {
+        if (it->type == ReqType::WriteCoil || it->type == ReqType::WriteCoils8)
+            it = m_qHigh.erase(it);
+        else
+            ++it;
+    }
+}
 
 void ModbusBus::enqueueHigh(const Request &r)
 {
+    if (r.type == ReqType::WriteCoil || r.type == ReqType::WriteCoils8) {
+        for (auto it = m_qHigh.begin(); it != m_qHigh.end(); ) {
+            if (sameHighTarget(*it, r))
+                it = m_qHigh.erase(it);
+            else
+                ++it;
+        }
+    }
+
     m_qHigh.push_back(r);
     pump();
 }
@@ -506,9 +584,12 @@ void ModbusBus::sendRequest(const Request &r)
     }
 
     if (!reply) {
-        emit errorOccurred(QStringLiteral("sendRequest failed: %1").arg(m_modbus->errorString()));
+        const QString reason = m_modbus
+                                   ? m_modbus->errorString()
+                                   : QStringLiteral("modbus client is null");
+
         m_busy = false;
-        QTimer::singleShot(0, this, &ModbusBus::pump);
+        handleTransportFailure(QStringLiteral("sendRequest failed: %1").arg(reason));
         return;
     }
 
@@ -521,8 +602,21 @@ void ModbusBus::sendRequest(const Request &r)
 
         if (err != QModbusDevice::NoError) {
             markRequestFailure(r);
-            // emit errorOccurred(QStringLiteral("Modbus reply error: %1 (%2) addr=%3") .arg(errStr).arg(int(err)).arg(r.slaveAddr));
+
+            const bool transportBroken =
+                err == QModbusDevice::ConnectionError ||
+                err == QModbusDevice::ReadError ||
+                err == QModbusDevice::WriteError ||
+                err == QModbusDevice::TimeoutError ||
+                err == QModbusDevice::UnknownError;
+
             m_busy = false;
+
+            if (transportBroken) {
+                handleTransportFailure(errStr);
+                return;
+            }
+
             pump();
             return;
         }
