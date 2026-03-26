@@ -5,7 +5,6 @@ import QtQuick.Layouts 1.15
 Page {
     id: lineEditPage
 
-    property bool tested: false
     property int lineMode: 0
     property string lineDescription: ""
     property double lineMpower: 0
@@ -31,9 +30,23 @@ Page {
         })
     }
 
-    Component.onCompleted: {
-        loadLine()
+    function stopCurrent() {
+        panel.stopCurrentTest()
+        win.testStart = false
     }
+
+    Connections {
+        target: panel
+
+        function onChanged() {
+            if (!panel.testRunning) {
+                win.testStart = false
+            }
+        }
+    }
+
+    Component.onCompleted: loadLine()
+    Component.onDestruction: stopCurrent()
 
     Column {
         anchors.fill: parent
@@ -81,7 +94,7 @@ Page {
 
                 Text {
                     anchors.centerIn: parent
-                    text: tested ? "Стоп" : "Тест"
+                    text: win.testStart ? "Стоп" : "Тест"
                     font.pixelSize: 30
                     color: "white"
                 }
@@ -89,14 +102,13 @@ Page {
                 MouseArea {
                     anchors.fill: parent
                     onClicked: {
-                        if (tested) {
+                        if (win.testStart) {
                             panel.stopLineTest(indexCh)
-                            tested = false
                             win.testStart = false
                         } else {
-                            panel.startLineTest(indexCh, durationTst * 300)
-                            tested = true
-                            win.testStart = true
+                            var ok = panel.startLineTest(indexCh, durationTst * 60*5)
+                            if (ok)
+                                win.testStart = true
                         }
                     }
                 }
@@ -107,7 +119,7 @@ Page {
                 height: 90
                 radius: 12
                 color: "orange"
-                visible: tested
+                visible: win.testStart
 
                 Text {
                     anchors.centerIn: parent
@@ -157,7 +169,7 @@ Page {
             }
 
             Label {
-                visible: tested
+                visible: win.testStart
                 text: panel.testPAvailable ? Number(panel.testPValue).toFixed(1) : "—"
                 font.pixelSize: 30
             }
@@ -170,7 +182,7 @@ Page {
             }
 
             Label {
-                visible: tested
+                visible: win.testStart
                 text: panel.testUAvailable ? Number(panel.testUValue).toFixed(1) : "—"
                 font.pixelSize: 30
             }
@@ -183,8 +195,8 @@ Page {
             }
 
             Label {
-                visible: tested
-                text: panel.testIAvailable ?  Number(panel.testIValue).toFixed(3) : "—"
+                visible: win.testStart
+                text: panel.testIAvailable ? Number(panel.testIValue).toFixed(3) : "—"
                 font.pixelSize: 30
             }
 
@@ -241,9 +253,7 @@ Page {
                     model: ["постоянный", "непостоянный", "линия отключена"]
                     currentIndex: lineMode
 
-                    onCurrentIndexChanged: {
-                        lineMode = currentIndex
-                    }
+                    onCurrentIndexChanged: lineMode = currentIndex
                 }
             }
         }
@@ -269,10 +279,9 @@ Page {
                 onPressed: btnRet.color = "gray"
                 onReleased: btnRet.color = "lightgray"
                 onClicked: {
-                    if (tested)
+                    if (win.testStart)
                         panel.stopLineTest(indexCh)
 
-                    tested = false
                     win.testStart = false
 
                     saveLine()

@@ -2,6 +2,13 @@
 #include "modbusbus.h"
 #include "logger.h"
 
+static Line::Status safeRestoreStatus(Line::Status st)
+{
+    if (st == Line::Test)
+        return Line::Failure;   // лучше заменить на Line::Unknown / Line::Idle, если такой статус есть
+    return st;
+}
+
 void TestController::setCurrentTestKind(TestKind k)
 {
     if (m_currentTestKind == k)
@@ -169,6 +176,20 @@ void TestController::stopAnyActiveTest()
     if (m_active != Active::NoMeas) {
         endMeasurements();
         allLineStatusReturn();
+
+        // страховка от зависших линий в статусе Test
+        if (m_model) {
+            const int count = m_model->rowCount();
+            for (int i = 0; i < count; ++i) {
+                Line *ln = m_model->line(i);
+                if (!ln)
+                    continue;
+
+                if (ln->status() == Line::Test) {
+                    ln->setStatus(safeRestoreStatus(ln->oldStatus()));
+                }
+            }
+        }
     }
 
     m_currentAllIsLong = false;
@@ -205,7 +226,7 @@ void TestController::allLineStatusReturn()
     for (int i = 0; i < count; ++i) {
         Line *ln = m_model->line(i);
         if (ln && ln->status() == Line::Test)
-            ln->setStatus(ln->oldStatus());
+            ln->setStatus(safeRestoreStatus(ln->oldStatus()));
     }
 }
 
@@ -249,9 +270,15 @@ int TestController::findFirstTestableIndex() const
 
 void TestController::startSingleLineTest(int lineIndex, int durationMs)
 {
+
     Line *line = m_model->line(lineIndex);
     if (!isLineTestable(line)) {
+        log(QString("Линия %1 недоступна для теста").arg(lineIndex));
         endMeasurements();
+        setActive(Active::None);
+        setSource(Source::None);
+        setMeasuredLine(-1);
+        setCurrentTestKind(TestKind::None);
         return;
     }
 
@@ -262,7 +289,8 @@ void TestController::startSingleLineTest(int lineIndex, int durationMs)
             .arg(line->description())
             .arg(durationMs / 1000));
 
-    line->setOldStatus(line->status());
+    const Line::Status prevStatus = safeRestoreStatus(line->status());
+    line->setOldStatus(prevStatus);
     line->setStatus(Line::Test);
     line->setPower(0);
 
@@ -321,6 +349,10 @@ void TestController::startAllLinesTest(int durationMs)
     if (first < 0) {
         log("ТЕСТ ВСЕХ: нет линий для теста");
         endMeasurements();
+        setActive(Active::None);
+        setSource(Source::None);
+        setMeasuredLine(-1);
+        setCurrentTestKind(TestKind::None);
         return;
     }
 
@@ -330,7 +362,8 @@ void TestController::startAllLinesTest(int durationMs)
     for (int i = 0; i < count; ++i) {
         Line *ln = m_model->line(i);
         if (isLineTestable(ln)) {
-            ln->setOldStatus(ln->status());
+            const Line::Status prevStatus = safeRestoreStatus(ln->status());
+            ln->setOldStatus(prevStatus);
             ln->setStatus(Line::Test);
             ln->setPower(0);
             countFact++;
