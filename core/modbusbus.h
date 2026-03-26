@@ -46,7 +46,6 @@ public:
     Q_INVOKABLE void setRelayGlobal(int index, bool on);
     Q_INVOKABLE void setAllRelaysOff();
     Q_INVOKABLE void setModuleRelaysBits(int moduleIndex, quint8 bits);
-    Q_INVOKABLE void setAllRelaysOffFast();
 
     // ===== Режимы опроса =====
     Q_INVOKABLE void setModeNormal();   // 1 сек: входа всех модулей + ADL200 + SHT20
@@ -191,6 +190,10 @@ private:
     bool m_busOnline = false;          // текущее логическое состояние шины
     bool m_wantConnected = false;
     int m_reconnectMs = 2000;
+
+    int m_consecutiveTransportErrors = 0;
+    int m_transportFailThreshold = 10;     // начать можно с 8
+    bool m_hadAnySuccessSinceConnect = false;
 
     QString deviceNameForRequest(const Request &r) const;
     void markRequestSuccess(const Request &r);

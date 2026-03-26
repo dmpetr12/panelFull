@@ -434,13 +434,26 @@ void BackendController::setupLineIo()
     QObject::connect(m_bus, &ModbusBus::inputsUpdated,
                      m_lineIoManager, &LineIoManager::onInputsUpdated);
 
-    QObject::connect(m_bus, &ModbusBus::connectedChanged,
-                     this, [this](bool connected) {
-                         if (!connected)
+    QObject::connect(m_bus, &ModbusBus::busOffline,
+                     this, [this](const QString &) {
+                         m_busWasOffline = true;
+                     });
+
+    QObject::connect(m_bus, &ModbusBus::busOnline,
+                     this, [this]() {
+                         // Первый старт — не считаем восстановлением
+                         if (!m_busInitialized) {
+                             m_busInitialized = true;
+                             return;
+                         }
+
+                         // Если реального offline не было — ничего не делаем
+                         if (!m_busWasOffline)
                              return;
 
+                         m_busWasOffline = false;
+
                          m_bus->setModeNormal();
-                         m_bus->setAllRelaysOffFast();
                          m_lineIoManager->forceApplyAll();
 
                          log(QStringLiteral("Связь с Modbus восстановлена, состояние реле пере-применено"));

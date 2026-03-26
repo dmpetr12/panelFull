@@ -175,6 +175,10 @@ void ModbusBus::onStateChanged(QModbusDevice::State state)
         m_reconnect.stop();
         m_sht20PollDivider = 0;
         resetAllDeviceStates();
+
+        m_consecutiveTransportErrors = 0;
+        m_hadAnySuccessSinceConnect = false;
+
         emit connectedChanged(true);
         startModeTimers();
 
@@ -214,11 +218,30 @@ void ModbusBus::onErrorOccurred(QModbusDevice::Error error)
 
     switch (error) {
     case QModbusDevice::ConnectionError:
-    case QModbusDevice::ReadError:
     case QModbusDevice::WriteError:
-    case QModbusDevice::TimeoutError:
     case QModbusDevice::UnknownError:
-        handleTransportFailure(reason);
+        ++m_consecutiveTransportErrors;
+
+        emit errorOccurred(QStringLiteral(
+                               "Modbus hard transport warning on %1: %2 failSeq=%3")
+                               .arg(m_portName)
+                               .arg(reason)
+                               .arg(m_consecutiveTransportErrors));
+
+        if (m_consecutiveTransportErrors >= m_transportFailThreshold ||
+            !m_hadAnySuccessSinceConnect) {
+            handleTransportFailure(reason);
+            return;
+        }
+        return;
+
+    case QModbusDevice::ReadError:
+    case QModbusDevice::TimeoutError:
+        // мягкая ошибка: не рвём шину сразу
+        emit errorOccurred(QStringLiteral(
+                               "Modbus soft error on %1: %2")
+                               .arg(m_portName)
+                               .arg(reason));
         return;
 
     default:
@@ -445,15 +468,6 @@ void ModbusBus::setModuleRelaysBits(int moduleIndex, quint8 bits)
     enqueueHigh(r);
 }
 
-void ModbusBus::setAllRelaysOffFast()
-{
-    if (m_relayModuleCount <= 0) return;
-
-    for (int m = 0; m < m_relayModuleCount; ++m) {
-        setModuleRelaysBits(m, 0x00);
-    }
-}
-
 // =======================
 // Очереди + coalescing
 // =======================
@@ -613,6 +627,32 @@ void ModbusBus::sendRequest(const Request &r)
             m_busy = false;
 
             if (transportBroken) {
+                ++m_consecutiveTransportErrors;
+
+                emit errorOccurred(QStringLiteral(
+                                       "Modbus transport warning on %1: addr=%2 type=%3 err=%4 failSeq=%5")
+                                       .arg(m_portName)
+                                       .arg(r.slaveAddr)
+                                       .arg(reqTypeName(r.type))
+                                       .arg(errStr)
+                                       .arg(m_consecutiveTransportErrors));
+
+                // Не валим всю шину от одной ошибки.
+                // Уводим в reconnect только если давно нет ни одного успешного ответа
+                // и накопилась серия транспортных ошибок.
+                if (m_hadAnySuccessSinceConnect &&
+                    m_consecutiveTransportErrors < m_transportFailThreshold) {
+                    pump();
+                    return;
+                }
+
+                if (!m_hadAnySuccessSinceConnect &&
+                    m_consecutiveTransportErrors < 3) {
+                    // на старте можно быть чуть терпимее, но не бесконечно
+                    pump();
+                    return;
+                }
+
                 handleTransportFailure(errStr);
                 return;
             }
@@ -737,6 +777,9 @@ void ModbusBus::markRequestSuccess(const Request &r)
     if (wasOffline) {
         emit deviceOnline(st.name, r.slaveAddr);
     }
+
+    m_consecutiveTransportErrors = 0;
+    m_hadAnySuccessSinceConnect = true;
 }
 
 void ModbusBus::markRequestFailure(const Request &r)

@@ -125,4 +125,7 @@ private:
     ModbusRtuSlave *m_modbusSlave = nullptr;// Modbus RTU 9600 8P1
     ModbusTcpServer *m_modbusTcpServer = nullptr;
     QString m_logLevel;
+
+    bool m_busWasOffline = false;
+    bool m_busInitialized = false;
 };
