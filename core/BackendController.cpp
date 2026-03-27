@@ -1016,6 +1016,8 @@ bool BackendController::stopLineTest(int index)
         return false;
 
     m_testController->stopTest(index);
+    emit logMessage(QStringLiteral("Тест линии остановлен"));
+    emit stateChanged();
     return true;
 }
 
