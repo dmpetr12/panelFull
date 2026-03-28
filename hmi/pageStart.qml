@@ -15,20 +15,16 @@ Rectangle {
 
         if (panel.fireActive) {
             appMode.state = Mode.Fire
-            if (panel.forcedFireActive && unlocked)
+            if (panel.programFireActive && unlocked)
                 btnResetForcedFireVsb = true
             return
         }
-        if (panel.forcedFireActive) {
-            appMode.state = Mode.Fire
-            if (unlocked)
-                btnResetForcedFireVsb = true
-            return
-        }
+
         if (panel.dispatcherActive) {
             appMode.state = Mode.Force
             return
         }
+
         if (panel.testRunning) {
             appMode.state = Mode.Test
             if (unlocked)
@@ -413,7 +409,7 @@ Rectangle {
                             onReleased: btnResetForcedFire.color = "#FF4C4C"
                             onClicked: {
                                 if (btnResetForcedFireVsb) {
-                                    panel.setForcedFire(false)
+                                    panel.setProgramFire(false)
                                 }
                             }
                         }
