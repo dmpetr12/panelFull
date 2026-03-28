@@ -253,7 +253,11 @@ Page {
                     model: ["постоянный", "непостоянный", "линия отключена"]
                     currentIndex: lineMode
 
-                    onCurrentIndexChanged: lineMode = currentIndex
+                    onCurrentIndexChanged: {
+                        lineMode = currentIndex
+                        saveLine()
+                        panel.applyLineModes()
+                    }
                 }
             }
         }
