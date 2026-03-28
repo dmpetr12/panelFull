@@ -13,7 +13,7 @@ Rectangle {
         btnStopTestVsb = false
         btnResetForcedFireVsb = false
 
-        if (panel.fireInput) {
+        if (panel.fireActive) {
             appMode.state = Mode.Fire
             if (panel.forcedFireActive && unlocked)
                 btnResetForcedFireVsb = true

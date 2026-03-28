@@ -89,7 +89,7 @@ quint16 encodeBatteryState(BackendController *backend)
     if (bat->batteryFault())
         return BatteryFault;
 
-    if (bat->batteryLow() || (!bat->charging() && bat->chargePercent() <= 0.1))
+    if (bat->batteryLow()) // || (!bat->charging() && bat->chargePercent() <= 0.1))
         return BatteryNoCharge;
 
     return BatteryNormal;
@@ -277,11 +277,11 @@ bool writeCoil(BackendController *backend, int address, bool value)
     case CoilFireOff:
         return backend->setForcedFire(false);
 
-    case CoilStopOn:
-        return backend->setForcedStop(true);
+    // case CoilStopOn:
+    //     return backend->setForcedStop(true);
 
-    case CoilStopOff:
-        return backend->setForcedStop(false);
+    // case CoilStopOff:
+    //     return backend->setForcedStop(false);
 
     case CoilStopTest:
         return backend->stopCurrentTest();
