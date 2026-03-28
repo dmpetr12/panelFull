@@ -1,0 +1,29 @@
+[
+    {
+        "enabled": true,
+        "period": "один раз",
+        "startDate": "2026-03-27",
+        "startTime": "11:06",
+        "testType": "Функциональный",
+        "weekDays": [
+        ]
+    },
+    {
+        "enabled": true,
+        "period": "один раз",
+        "startDate": "2026-01-15",
+        "startTime": "00:00",
+        "testType": "Функциональный",
+        "weekDays": [
+        ]
+    },
+    {
+        "enabled": true,
+        "period": "ежедневно",
+        "startDate": "2026-01-15",
+        "startTime": "11:35",
+        "testType": "На время",
+        "weekDays": [
+        ]
+    }
+]

@@ -2,7 +2,7 @@
   "timeAuto": 1,
   "timeTest": 2,
   "numLines": 25,
-  "maxRelayModules": 4,
+  "maxRelayModules": 1,
   "serialPort": "/dev/rs485_internal",
 
   "modbusRtu": {
@@ -16,7 +16,7 @@
   },
 
   "modbusTcp": {
-    "enabled": false,
+    "enabled": true,
     "bind": "0.0.0.0",
     "port": 502
   },
