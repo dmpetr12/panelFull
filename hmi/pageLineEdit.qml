@@ -9,16 +9,23 @@ Page {
     property string lineDescription: ""
     property double lineMpower: 0
     property double lineTolerance: 0
+    property bool loadingLine: false
 
     function loadLine() {
+        loadingLine = true
+
         var ln = panel.lineAt(indexCh)
-        if (!ln)
+        if (!ln) {
+            loadingLine = false
             return
+        }
 
         lineDescription = ln.description || ""
         lineMpower = Number(ln.mpower || 0)
         lineTolerance = Number(ln.tolerance || 0)
         lineMode = Number(ln.mode || 0)
+
+        loadingLine = false
     }
 
     function saveLine() {
@@ -254,6 +261,9 @@ Page {
                     currentIndex: lineMode
 
                     onCurrentIndexChanged: {
+                        if (loadingLine)
+                            return
+
                         lineMode = currentIndex
                         saveLine()
                         panel.applyLineModes()
