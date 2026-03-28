@@ -63,10 +63,10 @@ enum LineBlockOffset : int
 {
     LineType = 0,
     LineState = 1,
-    LineLastTestLow = 2,
-    LineLastTestHigh = 3,
-    LineReserved1 = 4,
-    LineReserved2 = 5
+    LineOutputState = 2,
+    LineLastTestLow = 3,
+    LineLastTestHigh = 4,
+    LineReserved1 = 5
 };
 
 enum CabinetStateCode : quint16
@@ -92,6 +92,13 @@ enum LineTypeCode : quint16
     LineNotUsed = 0,
     LineConstant = 1,
     LineNonConstant = 2
+};
+
+enum LineOutputStateCode : quint16
+{
+    LineOutputOff = 0,
+    LineOutputOn = 1,
+    LineOutputUnknown = 2
 };
 
 enum LineStateCode : quint16
@@ -120,6 +127,7 @@ quint16 encodeCabinetState(BackendController *backend);
 quint16 encodeBatteryState(BackendController *backend);
 quint16 encodeLineType(Line *line);
 quint16 encodeLineState(Line *line);
+quint16 encodeLineOutputState(Line *line);
 
 quint16 toScaled10(double v);
 quint16 toScaled100(double v);
@@ -134,8 +142,8 @@ quint16 toScaled100(double v);
 Адрес	Тип	Название	Формат	Описание
 00001	Coil	Fire ON	Bool	Включить программный режим FIRE
 00002	Coil	Fire OFF	Bool	Выключить программный режим FIRE
-00003	Coil	Stop ON	Bool	Включить программный режим STOP
-00004	Coil	Stop OFF	Bool	Выключить программный режим STOP
+00003	Coil	резерв
+00004	Coil	резерв
 00005	Coil	Stop Test	Bool	Остановить текущий тест
 00006	Coil	Start Functional Test	Bool	Запуск функционального теста
 00007	Coil	Start Duration Test	Bool	Запуск теста на длительность
@@ -206,22 +214,27 @@ quint16 toScaled100(double v);
 7. Структура блока линии
 Смещение	Название	Формат	Описание
 +0	Line Type	uint16	Тип линии
-+1	Line State	uint16	Состояние линии
-+2	Last Test Time Low	uint16	Время последнего теста, младшее слово
-+3	Last Test Time High	uint16	Время последнего теста, старшее слово
-+4	Reserved	uint16	Резерв
++1	Line Status	uint16	Состояние линии
++2	Line State	uint16	Состояние линии
++3	Last Test Time Low	uint16	Время последнего теста, младшее слово
++4	Last Test Time High	uint16	Время последнего теста, старшее слово
 +5	Reserved	uint16	Резерв
 Тип линии
 Код	Значение
 0	Линия не используется
 1	Постоянного действия
 2	Непостоянного действия
-Состояние линии
+Статус линии
 Код	Значение
 0	OK
 1	Авария
 2	Тест
 3	Не используется
+Состояние линии
+0	Выкл
+1	Вкл
+2	Не известно
+
 8. Пример адресов первых линий
 Линия 1
 Адрес	Название

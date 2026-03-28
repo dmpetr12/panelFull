@@ -157,6 +157,24 @@ quint16 encodeLineType(Line *line)
     }
 }
 
+quint16 encodeLineOutputState(Line *line)
+{
+    if (!line)
+        return LineOutputUnknown;
+
+    if (line->mode() == Line::NotUsed)
+        return LineOutputUnknown;
+
+    switch (line->lineState()) {
+    case Line::Off:
+        return LineOutputOff;
+    case Line::On:
+        return LineOutputOn;
+    default:
+        return LineOutputUnknown;
+    }
+}
+
 quint16 encodeLineState(Line *line)
 {
     if (!line)
@@ -246,6 +264,9 @@ quint16 readInputRegister(BackendController *backend, int address)
         case LineState:
             return encodeLineState(line);
 
+        case LineOutputState:
+            return encodeLineOutputState(line);
+
         case LineLastTestLow:
         case LineLastTestHigh: {
             const quint32 ts = safeDateTimeToU32(line->lastMeasuredTest());
@@ -253,7 +274,6 @@ quint16 readInputRegister(BackendController *backend, int address)
         }
 
         case LineReserved1:
-        case LineReserved2:
         default:
             return 0;
         }

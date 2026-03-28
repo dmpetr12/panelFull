@@ -7,7 +7,7 @@
 
   "modbusRtu": {
     "enabled": true,
-    "device": "/dev//dev/ttyS0",
+    "device": "/dev/ttyS0",
     "baudRate": 9600,
     "parity": "E",
     "dataBits": 8,
