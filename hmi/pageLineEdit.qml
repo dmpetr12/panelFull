@@ -30,7 +30,7 @@ Page {
 
     function saveLine() {
         panel.updateLine(indexCh, {
-            "description": lineDescription,
+            "description": lineNameField.text,
             "mpower": lineMpower,
             "tolerance": lineTolerance,
             "mode": lineMode
@@ -85,7 +85,6 @@ Page {
                     text: lineDescription
                     font.pixelSize: 30
                     readOnly: true
-                    onTextChanged: lineDescription = text
 
                     TapHandler {
                         onTapped: keyboard.openFor(lineNameField)
@@ -260,11 +259,8 @@ Page {
                     model: ["постоянный", "непостоянный", "линия отключена"]
                     currentIndex: lineMode
 
-                    onCurrentIndexChanged: {
-                        if (loadingLine)
-                            return
-
-                        lineMode = currentIndex
+                    onActivated: function(index) {
+                        lineMode = index
                         saveLine()
                         panel.applyLineModes()
                     }
