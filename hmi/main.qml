@@ -40,6 +40,11 @@ Window {
             countLn = panel.lineCount
             testStart = panel.testRunning
         }
+        function onMaintenanceWarning(overdueLines, longTestOverdue) {
+            maintenancePopup.overdueLines = overdueLines
+            maintenancePopup.longTestOverdue = longTestOverdue
+            maintenancePopup.open()
+        }
     }
 
     visible: true

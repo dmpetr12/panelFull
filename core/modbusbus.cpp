@@ -7,6 +7,7 @@
 #include <QtSerialBus/QModbusReply>
 #include <QDebug>
 #include <QHash>
+#include <QFile>
 
 ModbusBus::ModbusBus(AppConfig *config, QObject *parent)
     : QObject(parent)
@@ -43,6 +44,11 @@ ModbusBus::ModbusBus(AppConfig *config, QObject *parent)
 
         recreateClient();
         setupDevice();
+
+        if (!QFile::exists(m_portName)) {
+            emit errorOccurred(QStringLiteral("Port not found: %1").arg(m_portName));
+            return;
+        }
 
         if (!m_modbus->connectDevice()) {
             emit errorOccurred(QStringLiteral("Reconnect failed on %1: %2")

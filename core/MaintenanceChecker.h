@@ -37,7 +37,7 @@ public:
         m_minute = minute;
 
         // Проверим сразу при старте приложения (полезно)
-        QTimer::singleShot(500, this, [this]{ checkNow(false); });
+        QTimer::singleShot(60000, this, [this]{ checkNow(false); });
         scheduleNext();
     }
 

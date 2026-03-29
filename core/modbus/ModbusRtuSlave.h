@@ -59,4 +59,5 @@ private:
     bool m_wantRunning = false;
     bool m_online = false;
     QTimer m_reconnect;
+    QString m_lastError= "";
 };

@@ -139,12 +139,11 @@ Rectangle {
                         day = updated.getDate()
                         hour = updated.getHours()
                         minute = updated.getMinutes()
+                        dateText.text = Qt.formatDate(updated, "dd.MM.yyyy")
+                        timeText.text = Qt.formatTime(updated, "hh:mm")
                     } else {
                         console.log("Не удалось установить системное время")
-                    }
-
-                    dateText.text = Qt.formatDate(updated, "dd.MM.yyyy")
-                    timeText.text = Qt.formatTime(updated, "hh:mm")
+                    }     
                 }
             }
         }

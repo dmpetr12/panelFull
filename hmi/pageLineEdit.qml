@@ -53,7 +53,6 @@ Page {
     }
 
     Component.onCompleted: loadLine()
-    Component.onDestruction: stopCurrent()
 
     Column {
         anchors.fill: parent

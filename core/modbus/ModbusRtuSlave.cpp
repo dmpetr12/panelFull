@@ -10,6 +10,17 @@
 #include "ModbusRegisterMap.h"
 #include "logger.h"
 
+
+static bool isPermanentPortError(const QString &reason)
+{
+    const QString r = reason.toLower();
+
+    return r.contains("does not exist") ||
+           r.contains("no such file") ||
+           r.contains("cannot find the path") ||
+           r.contains("не удается найти указанный путь");
+}
+
 ModbusRtuSlave::ModbusRtuSlave(BackendController *backend, QObject *parent)
     : QObject(parent)
     , m_backend(backend)
@@ -23,7 +34,7 @@ ModbusRtuSlave::ModbusRtuSlave(BackendController *backend, QObject *parent)
     connect(timer, &QTimer::timeout, this, &ModbusRtuSlave::refreshInputRegisters);
     timer->start();
 
-    m_reconnect.setInterval(2000);
+    m_reconnect.setInterval(600000);
     m_reconnect.setSingleShot(false);
     connect(&m_reconnect, &QTimer::timeout, this, &ModbusRtuSlave::tryReconnect);
 }
@@ -83,7 +94,14 @@ void ModbusRtuSlave::recreateServer()
                 case QModbusDevice::WriteError:
                 case QModbusDevice::TimeoutError:
                 case QModbusDevice::UnknownError:
-                    scheduleReconnect(reason);
+                    // ❗ не ретраим если порт отсутствует
+                    if (!isPermanentPortError(reason)) {
+                        scheduleReconnect(reason);
+                    } else {
+                        log(QStringLiteral("Modbus RTU stopped: port not available"));
+                        if (m_reconnect.isActive())
+                            m_reconnect.stop();
+                    }
                     break;
                 default:
                     break;
@@ -123,13 +141,20 @@ bool ModbusRtuSlave::start(const QString &portName,
     m_server->setServerAddress(m_slaveId);
 
     if (!m_server->connectDevice()) {
-        const QString msg = QString("Modbus RTU slave start failed: %1").arg(m_server->errorString());
-        log(msg);
-        emit errorOccurred(msg);
+        const QString err = m_server->errorString();
+        const QString msg = QString("Modbus RTU slave start failed: %1").arg(err);
 
-        if (!m_reconnect.isActive())
-            m_reconnect.start();
+        if(msg != m_lastError){
+           emit errorOccurred(msg);
+            m_lastError = msg;
+        }
 
+
+        // ❗ НЕ перезапускать если порта нет
+        if (!isPermanentPortError(err)) {
+            if (!m_reconnect.isActive())
+                m_reconnect.start();
+        }
         return false;
     }
 

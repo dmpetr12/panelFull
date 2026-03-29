@@ -97,10 +97,10 @@ bool BackendController::start()
     setupSerialWatcher();
     setupLineIo();
     setupTesting();
-    setupMaintenance();
     setupSchedules();
     setupBattery();
     setupConnections();
+    setupMaintenance();
     applyInitialState();
     if (m_modbusSlave && m_config->modbusRtuEnabled()) {
         const bool ok = m_modbusSlave->start(
@@ -1230,18 +1230,6 @@ void BackendController::setMaintenanceUiEvent(int overdueLines,
     const QString oldCode = m_currentUiEvent.value("code").toString();
     const QString oldTitle = m_currentUiEvent.value("title").toString();
     const QString oldText = m_currentUiEvent.value("text").toString();
-    const bool oldActive = m_currentUiEvent.value("active", false).toBool();
-    const int oldOverdueLines = m_currentUiEvent.value("overdueLines").toInt(0);
-    const bool oldLongTestOverdue = m_currentUiEvent.value("longTestOverdue", false).toBool();
-
-    if (oldCode == QStringLiteral("maintenance_warning") &&
-        oldTitle == title &&
-        oldText == text &&
-        oldActive == active &&
-        oldOverdueLines == overdueLines &&
-        oldLongTestOverdue == longTestOverdue) {
-        return;
-    }
 
     QVariantMap ev;
     ev["id"] = QString::number(++m_currentUiEventId);
