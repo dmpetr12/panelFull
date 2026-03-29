@@ -57,6 +57,11 @@ Rectangle {
             recomputeSystemState()
             net.status = panel.busConnected ? Network.Ok : Network.Failure
         }
+        function onMaintenanceWarning(overdueLines, longTestOverdue) {
+            maintenancePopup.overdueLines = overdueLines
+            maintenancePopup.longTestOverdue = longTestOverdue
+            maintenancePopup.open()
+        }
     }
 
     Component.onCompleted: {

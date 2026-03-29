@@ -161,6 +161,12 @@ public:
 
 signals:
     void changed();
+    void maintenanceWarning(int overdueLines, bool longTestOverdue);
+
+    void uiEventChanged(const QString &code,
+                        const QString &title,
+                        const QString &text,
+                        bool active);
 
 private slots:
     void pollState();
@@ -175,4 +181,6 @@ private:
     QTimer m_pollTimer;
     bool m_connected = false;
     QJsonObject m_state;
+
+    quint64 m_lastSeenUiEventId = 0;
 };

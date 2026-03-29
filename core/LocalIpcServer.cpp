@@ -3,10 +3,12 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
+#include <QJsonArray>
 
 #include "BackendController.h"
 #include "devicesnapshot_json.h"
 #include "logger.h"
+
 
 LocalIpcServer::LocalIpcServer(BackendController *backend, QObject *parent)
     : QObject(parent)
@@ -14,6 +16,32 @@ LocalIpcServer::LocalIpcServer(BackendController *backend, QObject *parent)
 {
     connect(&m_server, &QLocalServer::newConnection,
             this, &LocalIpcServer::onNewConnection);
+    if (m_backend) {
+        m_lastUiEvent = QJsonObject::fromVariantMap(m_backend->currentUiEvent());
+
+        connect(m_backend, &BackendController::currentUiEventChanged,
+                this,
+                [this](const QString &code,
+                       const QString &title,
+                       const QString &text,
+                       bool active)
+                {
+                    if (!m_backend)
+                        return;
+
+                    m_lastUiEvent = QJsonObject::fromVariantMap(m_backend->currentUiEvent());
+
+                    // запасной вариант, если currentUiEvent() почему-то пустой
+                    if (m_lastUiEvent.isEmpty()) {
+                        QJsonObject ev;
+                        ev["code"] = code;
+                        ev["title"] = title;
+                        ev["text"] = text;
+                        ev["active"] = active;
+                        m_lastUiEvent = ev;
+                    }
+                });
+    }
 }
 
 bool LocalIpcServer::start(const QString &serverName)
@@ -76,10 +104,12 @@ void LocalIpcServer::processMessage(QLocalSocket *socket, const QByteArray &data
     const QString cmd = req.value("cmd").toString();
 
     if (cmd == "getState") {
-        sendJson(socket, {
-                             {"ok", true},
-                             {"state", deviceSnapshotToJson(m_backend->snapshot())}
-                         });
+        QJsonObject resp;
+        resp["ok"] = true;
+        resp["state"] = deviceSnapshotToJson(m_backend->snapshot());
+        resp["uiEvent"] = m_lastUiEvent;
+
+        sendJson(socket, resp);
         return;
     }
 

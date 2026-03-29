@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QLocalServer>
 #include <QLocalSocket>
+#include <QJsonObject>
 
 class BackendController;
 
@@ -27,4 +28,6 @@ private:
 private:
     BackendController *m_backend = nullptr;
     QLocalServer m_server;
+
+    QJsonObject m_lastUiEvent;
 };

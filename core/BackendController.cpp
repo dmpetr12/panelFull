@@ -605,6 +605,27 @@ void BackendController::setupConnections()
             this, [this]() {
                 emit logMessage(QStringLiteral("Связь Modbus RTU сервера восстановлена"));
             });
+    QObject::connect(m_maintenanceChecker, &MaintenanceChecker::maintenanceWarning,
+                     this, [this](int overdueLines, bool longTestOverdue) {
+                         QString title = QStringLiteral("ОБСЛУЖИВАНИЕ");
+                         QString text;
+
+                         if (overdueLines > 0 && longTestOverdue) {
+                             text = QStringLiteral("Просрочены проверки линий и длинный тест");
+                         } else if (overdueLines > 0) {
+                             text = QStringLiteral("Просрочено линий: %1").arg(overdueLines);
+                         } else if (longTestOverdue) {
+                             text = QStringLiteral("Длинный тест просрочен");
+                         } else {
+                             text = QStringLiteral("Требуется обслуживание");
+                         }
+
+                         setMaintenanceUiEvent(overdueLines,
+                                               longTestOverdue,
+                                               title,
+                                               text,
+                                               true);
+                     });
 }
 
 void BackendController::applyInitialState()
@@ -1165,3 +1186,122 @@ ValueProvider* BackendController::temperature() const
 {
     return m_temperature;
 }
+
+QVariantMap BackendController::currentUiEvent() const
+{
+    return m_currentUiEvent;
+}
+
+void BackendController::setCurrentUiEvent(const QString &code,
+                                          const QString &title,
+                                          const QString &text,
+                                          bool active)
+{
+    const QString oldCode = m_currentUiEvent.value("code").toString();
+    const QString oldTitle = m_currentUiEvent.value("title").toString();
+    const QString oldText = m_currentUiEvent.value("text").toString();
+    const bool oldActive = m_currentUiEvent.value("active").toBool();
+
+    if (oldCode == code &&
+        oldTitle == title &&
+        oldText == text &&
+        oldActive == active) {
+        return;
+    }
+
+    QVariantMap ev;
+    ev["id"] = QString::number(++m_currentUiEventId);
+    ev["code"] = code;
+    ev["title"] = title;
+    ev["text"] = text;
+    ev["active"] = active;
+
+    m_currentUiEvent = ev;
+
+    emit currentUiEventChanged(code, title, text, active);
+}
+
+void BackendController::setMaintenanceUiEvent(int overdueLines,
+                                              bool longTestOverdue,
+                                              const QString &title,
+                                              const QString &text,
+                                              bool active)
+{
+    const QString oldCode = m_currentUiEvent.value("code").toString();
+    const QString oldTitle = m_currentUiEvent.value("title").toString();
+    const QString oldText = m_currentUiEvent.value("text").toString();
+    const bool oldActive = m_currentUiEvent.value("active", false).toBool();
+    const int oldOverdueLines = m_currentUiEvent.value("overdueLines").toInt(0);
+    const bool oldLongTestOverdue = m_currentUiEvent.value("longTestOverdue", false).toBool();
+
+    if (oldCode == QStringLiteral("maintenance_warning") &&
+        oldTitle == title &&
+        oldText == text &&
+        oldActive == active &&
+        oldOverdueLines == overdueLines &&
+        oldLongTestOverdue == longTestOverdue) {
+        return;
+    }
+
+    QVariantMap ev;
+    ev["id"] = QString::number(++m_currentUiEventId);
+    ev["code"] = QStringLiteral("maintenance_warning");
+    ev["title"] = title;
+    ev["text"] = text;
+    ev["active"] = active;
+    ev["overdueLines"] = overdueLines;
+    ev["longTestOverdue"] = longTestOverdue;
+
+    m_currentUiEvent = ev;
+
+    emit currentUiEventChanged(
+        ev.value("code").toString(),
+        ev.value("title").toString(),
+        ev.value("text").toString(),
+        ev.value("active").toBool()
+        );
+}
+/* setCurrentUiEvent("fire",
+                  "ПОЖАР",
+                  "Активен пожарный режим",
+                  true);
+
+или:
+
+      setCurrentUiEvent("duration_test",
+                        "ТЕСТ НА ВРЕМЯ",
+                        "Выполняется тест на время",
+                        true);
+
+или:
+
+      setCurrentUiEvent("functional_test",
+                        "ФУНКЦИОНАЛЬНЫЙ ТЕСТ",
+                        "Выполняется функциональный тест",
+                        true);
+
+или:
+
+      setCurrentUiEvent("line_alarm",
+                        "АВАРИЯ ЛИНИЙ",
+                        "Обнаружена авария линии",
+                        true);
+
+или:
+
+      setCurrentUiEvent("charger_battery_fault",
+                        "АВАРИЯ ЗАРЯДНОГО/БАТАРЕИ",
+                        "Обнаружена неисправность зарядного устройства или батареи",
+                        true);
+
+или:
+
+      setCurrentUiEvent("cabinet_open",
+                        "ВСКРЫТИЕ ШКАФА",
+                        "Открыта дверца шкафа",
+                        true);
+
+Если событий нет:
+
+                   setCurrentUiEvent("none", "", "", false);
+*/

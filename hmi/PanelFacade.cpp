@@ -286,6 +286,28 @@ void PanelFacade::pollState()
 
     m_connected = true;
     m_state = resp.value("state").toObject();
+
+    const QJsonObject ev = resp.value("uiEvent").toObject();
+    const quint64 id = ev.value("id").toString().toULongLong();
+
+    if (id > 0 && id > m_lastSeenUiEventId) {
+        m_lastSeenUiEventId = id;
+
+        emit uiEventChanged(
+            ev.value("code").toString(),
+            ev.value("title").toString(),
+            ev.value("text").toString(),
+            ev.value("active").toBool(false)
+            );
+        const QString code = ev.value("code").toString();
+        if (code == "maintenance_warning") {
+            emit maintenanceWarning(
+                ev.value("overdueLines").toInt(0),
+                ev.value("longTestOverdue").toBool(false)
+                );
+        }
+    }
+
     emit changed();
 }
 

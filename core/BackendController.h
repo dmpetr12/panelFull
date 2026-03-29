@@ -66,6 +66,8 @@ public:
     PasswordManager* passwordManager() const;
     BatteryController* batteryController() const;
     DeviceSnapshot snapshot() const;
+    QVariantMap currentUiEvent() const;
+
 
     ValueProvider* inletU() const;
     ValueProvider* inletI() const;
@@ -85,6 +87,10 @@ signals:
     void stopped();
     void logMessage(const QString &msg);
     void stateChanged();
+    void currentUiEventChanged(const QString &code,
+                               const QString &title,
+                               const QString &text,
+                               bool active);
 
 private:
     void createObjects();
@@ -99,6 +105,15 @@ private:
     void setupBattery();
     void setupConnections();
     void applyInitialState();
+    void setCurrentUiEvent(const QString &code,
+                           const QString &title,
+                           const QString &text,
+                           bool active);
+    void setMaintenanceUiEvent(int overdueLines,
+                               bool longTestOverdue,
+                               const QString &title,
+                               const QString &text,
+                               bool active);
 
 private:
     AppConfig *m_config = nullptr;
@@ -128,4 +143,7 @@ private:
 
     bool m_busWasOffline = false;
     bool m_busInitialized = false;
+
+    QVariantMap m_currentUiEvent;
+    quint64 m_currentUiEventId = 0;
 };
