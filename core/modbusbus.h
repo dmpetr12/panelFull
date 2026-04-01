@@ -35,20 +35,19 @@ public:
 
     // SHT20 параметры (только температура)
     void setSht20TempInputReg(int reg);          // default 0x0001
-    void setSht20TempScale(double scale);        // default 0.1 (если окажется иначе — поменяешь)
+    void setSht20TempScale(double scale);        // default 0.1
 
     Q_INVOKABLE void connectDevice();
     Q_INVOKABLE void disconnectDevice();
     bool isConnected() const;
 
     // ===== РЕЛЕ =====
-    // CHANGED: setRelayGlobal удалён, оставляем только запись полного байта
     Q_INVOKABLE void setAllRelaysOff();
-    Q_INVOKABLE void setModuleRelaysBits(int moduleIndex, quint8 bits);
+    Q_INVOKABLE void setModuleRelaysBits(int moduleIndex, quint8 bits); // CHANGED
 
     // ===== Режимы опроса =====
     Q_INVOKABLE void setModeNormal();   // 1 сек: входа всех модулей + ADL200 + SHT20
-    Q_INVOKABLE void setModeTest();     // 500мс: входа модуля0 (пожар) + 200мс DJSF
+    Q_INVOKABLE void setModeTest();     // 500мс: входа модуля0 + DJSF
 
     // (опционально) ручной опрос
     Q_INVOKABLE void pollAllInputs();   // round-robin
@@ -61,7 +60,7 @@ signals:
     void relaysUpdated(int moduleIndex, quint8 bits);
     void inputsUpdated(int moduleIndex, quint8 bits);
 
-    // ADL200 inlet (slave 10): U/I/P
+    // ADL200 inlet (slave 10): U/I/P/F
     void inletMeterUpdated(double U, double I, double P, double F);
 
     // DJSF1352 test (slave 11): U/I/P
@@ -81,7 +80,7 @@ private slots:
     void onErrorOccurred(QModbusDevice::Error error);
 
 private:
-    // CHANGED: WriteCoil удалён
+    // CHANGED: только полная запись 8 катушек
     enum class ReqType { WriteCoils8, ReadInputs, ReadCoils, ReadHolding, ReadInputRegs };
     enum class MeterKind { None, ADL200_Inlet, DJSF_Test, SHT20_Temperature };
 
@@ -89,19 +88,13 @@ private:
         ReqType type = ReqType::ReadInputs;
         int slaveAddr = 1;
 
-        quint8 coilsBits = 0;
+        quint8 coilsBits = 0;   // CHANGED
 
         int start = 0;
         int count = 8;
 
         int moduleIndex = 0;
         MeterKind meterKind = MeterKind::None;
-
-        // CHANGED: верификация после записи реле
-        bool verifyAfterWrite = false;
-        quint8 expectedCoilsBits = 0;
-        int retryCount = 0;
-        int maxRetries = 2;
     };
 
     void setupDevice();
@@ -111,6 +104,7 @@ private:
     void recreateClient();
     void scheduleReconnect(const QString &reason);
     void handleTransportFailure(const QString &reason);
+    void clearPendingWrites(); // CHANGED
 
     static const char* reqTypeName(ModbusBus::ReqType t) {
         switch (t) {
@@ -121,6 +115,20 @@ private:
         case ModbusBus::ReqType::ReadInputRegs: return "ReadInputRegs (FC04)";
         }
         return "?";
+    }
+
+    // CHANGED
+    static bool sameHighTarget(const ModbusBus::Request &a, const ModbusBus::Request &b)
+    {
+        if (a.type != b.type) return false;
+        if (a.slaveAddr != b.slaveAddr) return false;
+
+        switch (a.type) {
+        case ModbusBus::ReqType::WriteCoils8:
+            return a.start == b.start && a.count == b.count;
+        default:
+            return false;
+        }
     }
 
     static bool samePeriodic(const Request& a, const Request& b);
@@ -167,22 +175,22 @@ private:
     double m_sht20TempScale = 0.1;
 
     int m_sht20PollDivider = 0;
-    int m_sht20PollEveryTicks = 5;   // раз в 5 normalTick, то есть раз в 5 секунд
+    int m_sht20PollEveryTicks = 5;   // раз в 5 normalTick
 
     enum class Mode { Normal, Test };
     Mode m_mode = Mode::Normal;
 
     QTimer m_tickNormal;   // 1 сек
-    QTimer m_tickTestFast; // 500 мс (тестовый измеритель)
-    QTimer m_tickTestFire; // 500 мс (пожарный модуль inputs)
+    QTimer m_tickTestFast; // 500 мс
+    QTimer m_tickTestFire; // 500 мс
 
     QTimer m_reconnect;
-    bool m_busOnline = false;          // текущее логическое состояние шины
+    bool m_busOnline = false;
     bool m_wantConnected = false;
     int m_reconnectMs = 2000;
 
     int m_consecutiveTransportErrors = 0;
-    int m_transportFailThreshold = 10;     // начать можно с 8
+    int m_transportFailThreshold = 10;
     bool m_hadAnySuccessSinceConnect = false;
 
     QString deviceNameForRequest(const Request &r) const;
@@ -202,6 +210,7 @@ private:
 };
 
 #endif // MODBUSBUS_H
+
 
 /*
 ===============================================================================

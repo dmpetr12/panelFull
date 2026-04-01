@@ -286,7 +286,8 @@ void ModbusBus::setModeNormal()
 {
     m_mode = Mode::Normal;
 
-    // CHANGED: high-очередь не трогаем, чтобы не срезать важные команды
+    // CHANGED: возвращена старая логика
+    clearPendingWrites();
     m_qNorm.clear();
     m_qLow.clear();
 
@@ -298,7 +299,8 @@ void ModbusBus::setModeTest()
 {
     m_mode = Mode::Test;
 
-    // CHANGED: high-очередь не трогаем, чтобы не срезать важные команды
+    // CHANGED: возвращена старая логика
+    clearPendingWrites();
     m_qNorm.clear();
     m_qLow.clear();
 
@@ -313,7 +315,6 @@ void ModbusBus::normalTick()
     if (m_qHigh.size() > 4 || m_qNorm.size() > 8 || m_qLow.size() > 8)
         return;
 
-    // 1) ВХОДА всех модулей (1..8) — раз в 1 сек
     for (int moduleIndex = 0; moduleIndex < m_relayModuleCount; ++moduleIndex) {
         Request r;
         r.type = ReqType::ReadInputs;
@@ -324,7 +325,6 @@ void ModbusBus::normalTick()
         enqueueNorm(r);
     }
 
-    // 2) ADL200 (slave 10): holding 0x000B..0x0011 (7 regs)
     {
         Request r;
         r.type = ReqType::ReadHolding;
@@ -335,7 +335,6 @@ void ModbusBus::normalTick()
         enqueueNorm(r);
     }
 
-    // 3) SHT20 (slave 12): Input Registers (0x04), temp reg, 1 reg
     {
         ++m_sht20PollDivider;
         if (m_sht20PollDivider >= m_sht20PollEveryTicks) {
@@ -384,7 +383,7 @@ void ModbusBus::testFastTick()
 }
 
 // =======================
-// (Опционально) старые round-robin опросы
+// (Опционально) round-robin опросы
 // =======================
 
 void ModbusBus::pollAllInputs()
@@ -443,10 +442,7 @@ void ModbusBus::setModuleRelaysBits(int moduleIndex, quint8 bits)
     r.slaveAddr = m_relayBaseAddr + moduleIndex;
     r.start = 0;
     r.count = 8;
-    r.coilsBits = bits;
-    r.expectedCoilsBits = bits;   // CHANGED
-    r.retryCount = 0;             // CHANGED
-    r.maxRetries = 2;             // CHANGED
+    r.coilsBits = bits; // CHANGED
 
     enqueueHigh(r);
 }
@@ -469,13 +465,30 @@ bool ModbusBus::samePeriodic(const Request& a, const Request& b)
            && a.start == b.start
            && a.count == b.count
            && a.moduleIndex == b.moduleIndex
-           && a.meterKind == b.meterKind
-           && a.verifyAfterWrite == b.verifyAfterWrite; // CHANGED
+           && a.meterKind == b.meterKind;
+}
+
+// CHANGED
+void ModbusBus::clearPendingWrites()
+{
+    for (auto it = m_qHigh.begin(); it != m_qHigh.end(); ) {
+        if (it->type == ReqType::WriteCoils8)
+            it = m_qHigh.erase(it);
+        else
+            ++it;
+    }
 }
 
 void ModbusBus::enqueueHigh(const Request &r)
 {
-    // CHANGED: важные команды не срезаем и не coalesce'им
+    // CHANGED: старая логика — оставляем только последнюю запись
+    for (auto it = m_qHigh.begin(); it != m_qHigh.end(); ) {
+        if (sameHighTarget(*it, r))
+            it = m_qHigh.erase(it);
+        else
+            ++it;
+    }
+
     m_qHigh.push_back(r);
     pump();
 }
@@ -627,46 +640,7 @@ void ModbusBus::sendRequest(const Request &r)
             quint8 bits = 0;
             for (int i = 0; i < res.valueCount() && i < 8; ++i)
                 if (res.value(i)) bits |= (1u << i);
-
             emit relaysUpdated(r.moduleIndex, bits);
-
-            // CHANGED: verify после записи
-            if (r.verifyAfterWrite) {
-                if (bits != r.expectedCoilsBits) {
-                    emit errorOccurred(QStringLiteral(
-                                           "Relay verify mismatch: addr=%1 module=%2 expected=0x%3 actual=0x%4 retry=%5/%6")
-                                           .arg(r.slaveAddr)
-                                           .arg(r.moduleIndex)
-                                           .arg(QString::number(r.expectedCoilsBits, 16).rightJustified(2, QLatin1Char('0')))
-                                           .arg(QString::number(bits, 16).rightJustified(2, QLatin1Char('0')))
-                                           .arg(r.retryCount)
-                                           .arg(r.maxRetries));
-
-                    if (r.retryCount < r.maxRetries) {
-                        Request wr;
-                        wr.type = ReqType::WriteCoils8;
-                        wr.slaveAddr = r.slaveAddr;
-                        wr.moduleIndex = r.moduleIndex;
-                        wr.start = 0;
-                        wr.count = 8;
-                        wr.coilsBits = r.expectedCoilsBits;
-                        wr.expectedCoilsBits = r.expectedCoilsBits;
-                        wr.retryCount = r.retryCount + 1;
-                        wr.maxRetries = r.maxRetries;
-
-                        m_busy = false;
-                        enqueueHigh(wr);
-                        return;
-                    }
-
-                    emit errorOccurred(QStringLiteral(
-                                           "Relay verify failed окончательно: addr=%1 module=%2 expected=0x%3 actual=0x%4")
-                                           .arg(r.slaveAddr)
-                                           .arg(r.moduleIndex)
-                                           .arg(QString::number(r.expectedCoilsBits, 16).rightJustified(2, QLatin1Char('0')))
-                                           .arg(QString::number(bits, 16).rightJustified(2, QLatin1Char('0'))));
-                }
-            }
         }
         else if (r.type == ReqType::ReadHolding && r.meterKind == MeterKind::ADL200_Inlet) {
             if (res.valueCount() >= 7) {
@@ -700,24 +674,6 @@ void ModbusBus::sendRequest(const Request &r)
                 const double T = rawT * m_sht20TempScale;
                 emit temperatureUpdated(T);
             }
-        }
-
-        // CHANGED: после успешной записи ставим verify в среднюю очередь
-        if (r.type == ReqType::WriteCoils8) {
-            Request vr;
-            vr.type = ReqType::ReadCoils;
-            vr.slaveAddr = r.slaveAddr;
-            vr.moduleIndex = r.moduleIndex;
-            vr.start = 0;
-            vr.count = 8;
-            vr.verifyAfterWrite = true;
-            vr.expectedCoilsBits = r.expectedCoilsBits;
-            vr.retryCount = r.retryCount;
-            vr.maxRetries = r.maxRetries;
-
-            m_busy = false;
-            enqueueNorm(vr);
-            return;
         }
 
         m_busy = false;
