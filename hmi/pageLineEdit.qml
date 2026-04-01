@@ -11,6 +11,11 @@ Page {
     property double lineTolerance: 0
     property bool loadingLine: false
 
+    // новые флаги
+    property bool pendingExit: false
+    property bool stopInProgress: false
+    property bool testButtonLocked: false
+
     function loadLine() {
         loadingLine = true
 
@@ -37,22 +42,58 @@ Page {
         })
     }
 
-    function stopCurrent() {
-        panel.stopCurrentTest()
-        win.testStart = false
+    function goBackNow() {
+        saveLine()
+        panel.applyLineModes()
+        panel.saveLines()
+        stackViewList.replace("pageAjaste.qml")
+    }
+
+    function requestStopAndExit() {
+        if (stopInProgress || pendingExit)
+            return
+
+        pendingExit = true
+        stopInProgress = true
+        testButtonLocked = true
+
+        panel.stopLineTest(indexCh)
     }
 
     Connections {
         target: panel
 
         function onChanged() {
-            if (!panel.testRunning) {
-                win.testStart = false
+            win.testStart = panel.testRunning
+
+            // пришло новое состояние от backend — кнопку можно снова жать
+            testButtonLocked = false
+
+            // если ждали остановку для выхода назад — уходим только когда тест реально остановлен
+            if (pendingExit && !panel.testRunning) {
+                pendingExit = false
+                stopInProgress = false
+                goBackNow()
+                return
             }
+
+            // если stop завершился — сбрасываем флаг
+            if (!panel.testRunning)
+                stopInProgress = false
         }
     }
 
-    Component.onCompleted: loadLine()
+    Component.onCompleted: {
+        loadLine()
+        win.testStart = panel.testRunning
+    }
+
+    // аварийная страховка:
+    // если страницу убрали не через кнопку "назад", пробуем остановить тест
+    Component.onDestruction: {
+        if (panel.testRunning)
+            panel.stopLineTest(indexCh)
+    }
 
     Column {
         anchors.fill: parent
@@ -95,25 +136,32 @@ Page {
                 width: 250
                 height: 90
                 radius: 12
-                color: "orange"
+                color: testButtonLocked ? "gray" : "orange"
 
                 Text {
                     anchors.centerIn: parent
-                    text: win.testStart ? "Стоп" : "Тест"
+                    text: panel.testRunning ? "Стоп" : "Тест"
                     font.pixelSize: 30
                     color: "white"
                 }
 
                 MouseArea {
                     anchors.fill: parent
+                    enabled: !testButtonLocked && !pendingExit
+
                     onClicked: {
-                        if (win.testStart) {
+                        if (testButtonLocked || pendingExit)
+                            return
+
+                        testButtonLocked = true
+
+                        if (panel.testRunning) {
+                            stopInProgress = true
                             panel.stopLineTest(indexCh)
-                            win.testStart = false
                         } else {
-                            var ok = panel.startLineTest(indexCh, durationTst * 60*5)
-                            if (ok)
-                                win.testStart = true
+                            var ok = panel.startLineTest(indexCh, durationTst * 60 * 5)
+                            if (!ok)
+                                testButtonLocked = false
                         }
                     }
                 }
@@ -124,7 +172,7 @@ Page {
                 height: 90
                 radius: 12
                 color: "orange"
-                visible: win.testStart
+                visible: panel.testRunning
 
                 Text {
                     anchors.centerIn: parent
@@ -135,6 +183,7 @@ Page {
 
                 MouseArea {
                     anchors.fill: parent
+                    enabled: !pendingExit
                     onClicked: lineMpower = panel.testPValue
                 }
             }
@@ -157,6 +206,7 @@ Page {
                 Button {
                     text: "ввести значение"
                     font.pixelSize: 30
+                    enabled: !pendingExit
                     onClicked: digitalPopup.openFor(
                                    "Введите мощность",
                                    lineEditPage,
@@ -174,7 +224,7 @@ Page {
             }
 
             Label {
-                visible: win.testStart
+                visible: panel.testRunning
                 text: panel.testPAvailable ? Number(panel.testPValue).toFixed(1) : "—"
                 font.pixelSize: 30
             }
@@ -187,7 +237,7 @@ Page {
             }
 
             Label {
-                visible: win.testStart
+                visible: panel.testRunning
                 text: panel.testUAvailable ? Number(panel.testUValue).toFixed(1) : "—"
                 font.pixelSize: 30
             }
@@ -200,7 +250,7 @@ Page {
             }
 
             Label {
-                visible: win.testStart
+                visible: panel.testRunning
                 text: panel.testIAvailable ? Number(panel.testIValue).toFixed(3) : "—"
                 font.pixelSize: 30
             }
@@ -223,6 +273,7 @@ Page {
                 Button {
                     text: "ввести значение"
                     font.pixelSize: 30
+                    enabled: !pendingExit
                     onClicked: digitalPopup.openFor(
                                    "Введите допуск, %",
                                    lineEditPage,
@@ -246,6 +297,7 @@ Page {
                     id: control
                     anchors.fill: parent
                     font.pixelSize: 35
+                    enabled: !pendingExit
 
                     delegate: ItemDelegate {
                         width: control.width
@@ -271,7 +323,7 @@ Page {
             id: btnRet
             width: 150
             height: 150
-            color: "lightgray"
+            color: pendingExit ? "gray" : "lightgray"
             radius: 6
 
             Image {
@@ -283,21 +335,23 @@ Page {
             MouseArea {
                 anchors.fill: parent
                 hoverEnabled: true
-                onEntered: btnRet.color = "lightgray"
-                onExited: btnRet.color = "lightgray"
-                onPressed: btnRet.color = "gray"
-                onReleased: btnRet.color = "lightgray"
+                enabled: !pendingExit
+
+                onEntered: btnRet.color = pendingExit ? "gray" : "lightgray"
+                onExited: btnRet.color = pendingExit ? "gray" : "lightgray"
+                onPressed: if (!pendingExit) btnRet.color = "gray"
+                onReleased: if (!pendingExit) btnRet.color = "lightgray"
+
                 onClicked: {
-                    if (win.testStart)
-                        panel.stopLineTest(indexCh)
+                    if (pendingExit)
+                        return
 
-                    win.testStart = false
+                    if (panel.testRunning) {
+                        requestStopAndExit()
+                        return
+                    }
 
-                    saveLine()
-                    panel.applyLineModes()
-                    panel.saveLines()
-
-                    stackViewList.replace("pageAjaste.qml")
+                    goBackNow()
                 }
             }
         }

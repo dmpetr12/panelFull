@@ -61,6 +61,25 @@ void LineIoManager::bind(ModbusBus *bus, LinesModel *linesModel, int numLines)
     m_lines = linesModel;
     m_numLines = numLines;
 
+    // CHANGED: подключаем входы
+    connect(m_bus, &ModbusBus::inputsUpdated,
+            this, &LineIoManager::onInputsUpdated,
+            Qt::UniqueConnection);
+
+    // CHANGED: подключаем подтверждение состояния реле
+    connect(m_bus, &ModbusBus::relaysUpdated,
+            this, &LineIoManager::onRelaysUpdated,
+            Qt::UniqueConnection);
+
+    // CHANGED: после восстановления шины заново продавливаем нужное состояние
+    connect(m_bus, &ModbusBus::busOnline,
+            this, &LineIoManager::onBusOnline,
+            Qt::UniqueConnection);
+    // CHANGED: при потере шины подтверждённое состояние считаем неизвестным
+    connect(m_bus, &ModbusBus::busOffline,
+            this, &LineIoManager::onBusOffline,
+            Qt::UniqueConnection);
+
     recomputeDesiredAll();
     applyAllModules(true);
 }
@@ -88,6 +107,34 @@ void LineIoManager::onInputsUpdated(int moduleIndex, quint8 bits)
 
     recomputeDesiredAll();
     applyAllModules(true);
+}
+
+// CHANGED
+void LineIoManager::onRelaysUpdated(int moduleIndex, quint8 bits)
+{
+    if (moduleIndex < 0 || moduleIndex >= MAX_MODULES)
+        return;
+
+    // подтверждаем только если фактическое состояние совпало с желаемым
+    if (bits == m_desiredRelays[moduleIndex])
+        m_lastSentRelays[moduleIndex] = bits;
+}
+
+void LineIoManager::onBusOnline()
+{
+    for (int i = 0; i < MAX_MODULES; ++i)
+        m_lastSentRelays[i] = 0xFF;
+
+    recomputeDesiredAll();
+    applyAllModules(true);
+}
+
+void LineIoManager::onBusOffline(const QString &reason)
+{
+    Q_UNUSED(reason);
+
+    for (int i = 0; i < MAX_MODULES; ++i)
+        m_lastSentRelays[i] = 0xFF;
 }
 
 void LineIoManager::updateFireFromModule0(quint8 bits0)
@@ -480,7 +527,8 @@ void LineIoManager::applyModuleIfChanged(int moduleIndex, bool force)
         return;
 
     m_bus->setModuleRelaysBits(moduleIndex, desired);
-    m_lastSentRelays[moduleIndex] = desired;
+    // CHANGED: тут больше не помечаем как "отправлено".
+    // Подтверждение теперь идёт только через onRelaysUpdated().
 }
 
 bool LineIoManager::mapLineToRelayBits(int lineIndex, int &moduleIndex, int &bitMeas, int &bitWork) const

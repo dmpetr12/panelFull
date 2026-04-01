@@ -232,7 +232,6 @@ QString PanelFacade::logLevel() const
 }
 
 // ===== IPC =====
-
 bool PanelFacade::sendCommand(const QJsonObject &req, QJsonObject *resp)
 {
     QLocalSocket socket;
@@ -240,7 +239,6 @@ bool PanelFacade::sendCommand(const QJsonObject &req, QJsonObject *resp)
 
     if (!socket.waitForConnected(300)) {
         m_connected = false;
-        emit changed();
         return false;
     }
 
@@ -248,13 +246,11 @@ bool PanelFacade::sendCommand(const QJsonObject &req, QJsonObject *resp)
 
     if (!socket.waitForBytesWritten(300)) {
         m_connected = false;
-        emit changed();
         return false;
     }
 
     if (!socket.waitForReadyRead(500)) {
         m_connected = false;
-        emit changed();
         return false;
     }
 
@@ -262,12 +258,15 @@ bool PanelFacade::sendCommand(const QJsonObject &req, QJsonObject *resp)
 
     QJsonParseError err;
     const QJsonDocument doc = QJsonDocument::fromJson(raw, &err);
-    if (err.error != QJsonParseError::NoError || !doc.isObject())
+    if (err.error != QJsonParseError::NoError || !doc.isObject()) {
+        m_connected = false;
         return false;
+    }
 
     if (resp)
         *resp = doc.object();
 
+    m_connected = true;
     return doc.object().value("ok").toBool(false);
 }
 
@@ -320,18 +319,46 @@ void PanelFacade::refresh()
 
 bool PanelFacade::startFunctionalTest()
 {
-    return sendCommand({{"cmd", "startFunctionalTest"}});
+    const bool ok = sendCommand({{"cmd", "startFunctionalTest"}});
+    pollState();
+    return ok;
 }
 
 bool PanelFacade::startDurationTest()
 {
-    return sendCommand({{"cmd", "startDurationTest"}});
+    const bool ok = sendCommand({{"cmd", "startDurationTest"}});
+    pollState();
+    return ok;
 }
 
 bool PanelFacade::stopCurrentTest()
 {
-    return sendCommand({{"cmd", "stopCurrentTest"}});
+    const bool ok = sendCommand({{"cmd", "stopCurrentTest"}});
+    pollState();
+    return ok;
 }
+
+bool PanelFacade::startLineTest(int index, int durationSec)
+{
+    const bool ok = sendCommand({
+        {"cmd", "startLineTest"},
+        {"index", index},
+        {"durationSec", durationSec}
+    });
+    pollState();
+    return ok;
+}
+
+bool PanelFacade::stopLineTest(int index)
+{
+    const bool ok = sendCommand({
+        {"cmd", "stopLineTest"},
+        {"index", index}
+    });
+    pollState();
+    return ok;
+}
+
 
 bool PanelFacade::setProgramFire(bool on)
 {
@@ -466,22 +493,6 @@ bool PanelFacade::saveLines()
     });
 }
 
-bool PanelFacade::startLineTest(int index, int durationSec)
-{
-    return sendCommand({
-        {"cmd", "startLineTest"},
-        {"index", index},
-        {"durationSec", durationSec}
-    });
-}
-
-bool PanelFacade::stopLineTest(int index)
-{
-    return sendCommand({
-        {"cmd", "stopLineTest"},
-        {"index", index}
-    });
-}
 
 bool PanelFacade::applyLineModes()
 {

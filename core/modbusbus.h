@@ -1,4 +1,3 @@
-// ModbusBus.h
 #ifndef MODBUSBUS_H
 #define MODBUSBUS_H
 
@@ -43,7 +42,7 @@ public:
     bool isConnected() const;
 
     // ===== РЕЛЕ =====
-    Q_INVOKABLE void setRelayGlobal(int index, bool on);
+    // CHANGED: setRelayGlobal удалён, оставляем только запись полного байта
     Q_INVOKABLE void setAllRelaysOff();
     Q_INVOKABLE void setModuleRelaysBits(int moduleIndex, quint8 bits);
 
@@ -82,7 +81,8 @@ private slots:
     void onErrorOccurred(QModbusDevice::Error error);
 
 private:
-    enum class ReqType { WriteCoil, WriteCoils8, ReadInputs, ReadCoils, ReadHolding, ReadInputRegs };
+    // CHANGED: WriteCoil удалён
+    enum class ReqType { WriteCoils8, ReadInputs, ReadCoils, ReadHolding, ReadInputRegs };
     enum class MeterKind { None, ADL200_Inlet, DJSF_Test, SHT20_Temperature };
 
     struct Request {
@@ -90,14 +90,18 @@ private:
         int slaveAddr = 1;
 
         quint8 coilsBits = 0;
-        int coilIndex = 0;
-        bool coilOn = false;
 
         int start = 0;
         int count = 8;
 
         int moduleIndex = 0;
         MeterKind meterKind = MeterKind::None;
+
+        // CHANGED: верификация после записи реле
+        bool verifyAfterWrite = false;
+        quint8 expectedCoilsBits = 0;
+        int retryCount = 0;
+        int maxRetries = 2;
     };
 
     void setupDevice();
@@ -107,10 +111,9 @@ private:
     void recreateClient();
     void scheduleReconnect(const QString &reason);
     void handleTransportFailure(const QString &reason);
-    void clearPendingWrites();
+
     static const char* reqTypeName(ModbusBus::ReqType t) {
         switch (t) {
-        case ModbusBus::ReqType::WriteCoil:     return "WriteCoil (FC05)";
         case ModbusBus::ReqType::WriteCoils8:   return "WriteCoils (FC0F)";
         case ModbusBus::ReqType::ReadInputs:    return "ReadInputs (FC02)";
         case ModbusBus::ReqType::ReadCoils:     return "ReadCoils (FC01)";
@@ -118,19 +121,6 @@ private:
         case ModbusBus::ReqType::ReadInputRegs: return "ReadInputRegs (FC04)";
         }
         return "?";
-    }
-    static bool sameHighTarget(const ModbusBus::Request &a, const ModbusBus::Request &b)
-    {
-        if (a.type != b.type) return false;
-        if (a.slaveAddr != b.slaveAddr)return false;
-        switch (a.type) {
-        case ModbusBus::ReqType::WriteCoil:
-            return a.coilIndex == b.coilIndex;
-        case ModbusBus::ReqType::WriteCoils8:
-            return a.start == b.start && a.count == b.count;
-        default:
-            return false;
-        }
     }
 
     static bool samePeriodic(const Request& a, const Request& b);

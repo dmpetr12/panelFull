@@ -29,6 +29,10 @@ public:
     void bind(ModbusBus *bus, LinesModel *linesModel, int numLines);
 
     Q_SLOT void onInputsUpdated(int moduleIndex, quint8 bits);
+    Q_SLOT void onRelaysUpdated(int moduleIndex, quint8 bits); // CHANGED
+
+    Q_SLOT void onBusOnline();                                 // CHANGED
+    Q_SLOT void onBusOffline(const QString &reason);           // CHANGED
 
     Q_INVOKABLE void forceApplyAll();
 
@@ -149,7 +153,7 @@ private:
 
     quint8 m_lastInputs[MAX_MODULES];
     quint8 m_desiredRelays[MAX_MODULES];
-    quint8 m_lastSentRelays[MAX_MODULES];
+    quint8 m_lastSentRelays[MAX_MODULES]; // CHANGED: теперь это "последнее подтверждённое состояние"
 
     // аппаратный пожар
     bool m_fireInput = false;

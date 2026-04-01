@@ -8,29 +8,45 @@ Rectangle {
     width: stackViewList.width
     height: stackViewList.height
 
-    property int countdown: 10
+    property int countdown: 0
     property int selectedMinutes: 1
     property string testName: ""
 
+    property bool pendingExit: false
+    property bool commandLocked: false
+    property bool stopInProgress: false
+
     function isRunning() {
-        return countdownTimer.running
+        return panel.testRunning
     }
 
-    function stopCurrent() {
-        countdownTimer.stop()
-        countdown = 0
-        panel.stopCurrentTest()
-        win.testStart = false
-    }
-
-    function startCurrent() {
+    function syncCountdownFromSelection() {
         countdown = indexCh > -2 ? selectedMinutes * 60 : selectedMinutes * 3600
         if (indexCh === -1)
             countdown = panel.calcAllLinesTestDurationSec()
+    }
+
+    function stopCurrent() {
+        if (commandLocked)
+            return
+
+        commandLocked = true
+        stopInProgress = true
+        panel.stopCurrentTest()
+    }
+
+    function startCurrent() {
+        if (commandLocked)
+            return
+
+        syncCountdownFromSelection()
+
         if (countdown <= 0) {
             console.log("Длительность теста должна быть больше нуля")
             return
         }
+
+        commandLocked = true
 
         var ok = false
 
@@ -41,18 +57,31 @@ Rectangle {
         }
 
         if (!ok) {
+            commandLocked = false
             console.log("Не удалось запустить тест")
             return
         }
 
-        countdownTimer.start()
         win.testStart = true
+    }
+
+    function requestExit() {
+        if (pendingExit)
+            return
+
+        if (panel.testRunning) {
+            pendingExit = true
+            stopCurrent()
+            return
+        }
+
+        stackViewList.replace("pageTest.qml")
     }
 
     function loadTitle() {
         selectedMinutes = indexCh > -1 ? durationTst :
-                          indexCh > -2 ?   panel.calcAllLinesTestDurationSec() :
-                          durationAv
+                          indexCh > -2 ? panel.calcAllLinesTestDurationSec() :
+                                         durationAv
 
         if (indexCh >= 0) {
             var ln = panel.lineAt(indexCh)
@@ -68,11 +97,25 @@ Rectangle {
 
     Connections {
         target: panel
+
         function onChanged() {
-            if (!panel.testRunning && countdownTimer.running) {
+            win.testStart = panel.testRunning
+
+            // backend ответил/состояние обновилось — кнопку снова можно жать
+            commandLocked = false
+
+            if (panel.testRunning) {
+                if (!countdownTimer.running && countdown > 0)
+                    countdownTimer.start()
+            } else {
+                stopInProgress = false
                 countdownTimer.stop()
                 countdown = 0
-                win.testStart = false
+            }
+
+            if (pendingExit && !panel.testRunning) {
+                pendingExit = false
+                stackViewList.replace("pageTest.qml")
             }
         }
     }
@@ -80,10 +123,8 @@ Rectangle {
     Component.onCompleted: {
         loadTitle()
         panel.stopCurrentTest()
+        win.testStart = panel.testRunning
     }
-
-    Component.onDestruction: stopCurrent()
-
 
     Column {
         anchors.fill: parent
@@ -107,19 +148,24 @@ Rectangle {
                     width: 250
                     height: 90
                     radius: 12
-                    color: "orange"
+                    color: commandLocked || pendingExit ? "gray" : "orange"
 
                     Text {
                         anchors.centerIn: parent
-                        text: countdownTimer.running ? "Стоп" : "Старт"
+                        text: panel.testRunning ? "Стоп" : "Старт"
                         font.pixelSize: 40
                         color: "white"
                     }
 
                     MouseArea {
                         anchors.fill: parent
+                        enabled: !commandLocked && !pendingExit
+
                         onClicked: {
-                            if (countdownTimer.running)
+                            if (commandLocked || pendingExit)
+                                return
+
+                            if (panel.testRunning)
                                 stopCurrent()
                             else
                                 startCurrent()
@@ -132,8 +178,8 @@ Rectangle {
 
                     Text {
                         text: indexCh > -1 ? "Время теста, мин:" :
-                              indexCh ==-1 ? "Время теста, с:" :
-                                                 "Время теста, ч:"
+                              indexCh == -1 ? "Время теста, с:" :
+                                               "Время теста, ч:"
                         font.pixelSize: 40
                         verticalAlignment: Text.AlignVCenter
                     }
@@ -154,7 +200,7 @@ Rectangle {
                         id: counter
                         anchors.centerIn: parent
                         font.pixelSize: 60
-                        text: countdownTimer.running
+                        text: panel.testRunning
                               ? Math.floor(countdown / 60) + ":" + ("0" + (countdown % 60)).slice(-2)
                               : ""
                     }
@@ -170,7 +216,10 @@ Rectangle {
                                 countdown--
                             } else {
                                 stop()
-                                win.testStart = false
+                                if (panel.testRunning)
+                                    testEx.stopCurrent()
+                                else
+                                    win.testStart = false
                             }
                         }
                     }
@@ -189,7 +238,9 @@ Rectangle {
                         visible: indexCh > -1
                         text: "ввести значение"
                         font.pixelSize: 40
+                        enabled: !panel.testRunning && !pendingExit && !commandLocked
                         property int p: indexCh > -2 ? maxMinute : maxHour
+
                         onClicked: digitalPopup.openFor(
                                        "Введите время теста",
                                        testEx,
@@ -215,7 +266,7 @@ Rectangle {
                 id: btnRet
                 width: 150
                 height: 150
-                color: "lightgray"
+                color: pendingExit ? "gray" : "lightgray"
                 radius: 6
 
                 Image {
@@ -227,11 +278,14 @@ Rectangle {
                 MouseArea {
                     anchors.fill: parent
                     hoverEnabled: true
-                    onEntered: btnRet.color = "lightgray"
-                    onExited: btnRet.color = "lightgray"
-                    onPressed: btnRet.color = "gray"
-                    onReleased: btnRet.color = "lightgray"
-                    onClicked: stackViewList.replace("pageTest.qml")
+                    enabled: !pendingExit
+
+                    onEntered: btnRet.color = pendingExit ? "gray" : "lightgray"
+                    onExited: btnRet.color = pendingExit ? "gray" : "lightgray"
+                    onPressed: if (!pendingExit) btnRet.color = "gray"
+                    onReleased: if (!pendingExit) btnRet.color = "lightgray"
+
+                    onClicked: requestExit()
                 }
             }
         }

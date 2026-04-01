@@ -1,4 +1,3 @@
-// ModbusBus.cpp
 #include "modbusbus.h"
 #include "AppConfig.h"
 
@@ -13,8 +12,8 @@ ModbusBus::ModbusBus(AppConfig *config, QObject *parent)
     : QObject(parent)
     , m_config(config)
 {
-
     recreateClient();
+
     // NORMAL tick (1 sec)
     m_tickNormal.setInterval(1000);
     m_tickNormal.setSingleShot(false);
@@ -127,7 +126,7 @@ void ModbusBus::connectDevice()
 
     if (!m_modbus->connectDevice()) {
         emit errorOccurred(QStringLiteral("Modbus connect error: %1").arg(m_modbus->errorString()));
-        m_reconnect.start();   // <-- ВАЖНО
+        m_reconnect.start();
     }
 }
 
@@ -243,7 +242,6 @@ void ModbusBus::onErrorOccurred(QModbusDevice::Error error)
 
     case QModbusDevice::ReadError:
     case QModbusDevice::TimeoutError:
-        // мягкая ошибка: не рвём шину сразу
         emit errorOccurred(QStringLiteral(
                                "Modbus soft error on %1: %2")
                                .arg(m_portName)
@@ -288,8 +286,7 @@ void ModbusBus::setModeNormal()
 {
     m_mode = Mode::Normal;
 
-    // срежем хвост тестовых запросов, но High (команды реле) не трогаем
-    clearPendingWrites();
+    // CHANGED: high-очередь не трогаем, чтобы не срезать важные команды
     m_qNorm.clear();
     m_qLow.clear();
 
@@ -301,8 +298,7 @@ void ModbusBus::setModeTest()
 {
     m_mode = Mode::Test;
 
-    // срежем хвост обычных опросов
-    clearPendingWrites();
+    // CHANGED: high-очередь не трогаем, чтобы не срезать важные команды
     m_qNorm.clear();
     m_qLow.clear();
 
@@ -322,13 +318,13 @@ void ModbusBus::normalTick()
         Request r;
         r.type = ReqType::ReadInputs;
         r.moduleIndex = moduleIndex;
-        r.slaveAddr = m_relayBaseAddr + moduleIndex; // 1..8
+        r.slaveAddr = m_relayBaseAddr + moduleIndex;
         r.start = 0;
         r.count = 8;
         enqueueNorm(r);
     }
 
-    // 2) ADL200 (slave 10): holding 0x000B..0x000D (3 regs)
+    // 2) ADL200 (slave 10): holding 0x000B..0x0011 (7 regs)
     {
         Request r;
         r.type = ReqType::ReadHolding;
@@ -339,7 +335,7 @@ void ModbusBus::normalTick()
         enqueueNorm(r);
     }
 
-    // 3) SHT20 (slave 12): Input Registers (0x04), temp reg (default 0x0001), 1 reg
+    // 3) SHT20 (slave 12): Input Registers (0x04), temp reg, 1 reg
     {
         ++m_sht20PollDivider;
         if (m_sht20PollDivider >= m_sht20PollEveryTicks) {
@@ -363,11 +359,10 @@ void ModbusBus::testFireTick()
     if (m_qHigh.size() > 4 || m_qNorm.size() > 8)
         return;
 
-    // Только модуль 0 (ПОЖАР) => slave = base + 0
     Request r;
     r.type = ReqType::ReadInputs;
     r.moduleIndex = 0;
-    r.slaveAddr = m_relayBaseAddr + 0; // 1
+    r.slaveAddr = m_relayBaseAddr + 0;
     r.start = 0;
     r.count = 8;
     enqueueNorm(r);
@@ -378,7 +373,6 @@ void ModbusBus::testFastTick()
     if (!isConnected())
         return;
 
-    // DJSF1352 (slave 11): holding 0..9 (10 regs)
     Request r;
     r.type = ReqType::ReadHolding;
     r.slaveAddr = m_addrTest;
@@ -386,7 +380,6 @@ void ModbusBus::testFastTick()
     r.count = 4;
     r.meterKind = MeterKind::DJSF_Test;
 
-    // Low, чтобы команды реле (High) и пожарный опрос (Norm) были важнее
     enqueueLow(r);
 }
 
@@ -430,25 +423,6 @@ void ModbusBus::pollAllRelays()
 // РЕЛЕ
 // =======================
 
-void ModbusBus::setRelayGlobal(int index, bool on)
-{
-    if (!isConnected()) return;
-    if (index < 0 || m_relayModuleCount <= 0) return;
-
-    int moduleIndex = index / 8;
-    int coilIndex   = index % 8;
-
-    if (moduleIndex >= m_relayModuleCount) return;
-
-    Request r;
-    r.type = ReqType::WriteCoil;
-    r.slaveAddr = m_relayBaseAddr + moduleIndex;
-    r.coilIndex = coilIndex;
-    r.coilOn = on;
-
-    enqueueHigh(r);
-}
-
 void ModbusBus::setAllRelaysOff()
 {
     if (m_relayModuleCount <= 0)
@@ -470,6 +444,9 @@ void ModbusBus::setModuleRelaysBits(int moduleIndex, quint8 bits)
     r.start = 0;
     r.count = 8;
     r.coilsBits = bits;
+    r.expectedCoilsBits = bits;   // CHANGED
+    r.retryCount = 0;             // CHANGED
+    r.maxRetries = 2;             // CHANGED
 
     enqueueHigh(r);
 }
@@ -480,7 +457,6 @@ void ModbusBus::setModuleRelaysBits(int moduleIndex, quint8 bits)
 
 bool ModbusBus::samePeriodic(const Request& a, const Request& b)
 {
-    // периодическими считаем: любые Read* запросы
     const auto isRead = [](ReqType t){
         return t == ReqType::ReadInputs || t == ReqType::ReadCoils
                || t == ReqType::ReadHolding || t == ReqType::ReadInputRegs;
@@ -493,38 +469,22 @@ bool ModbusBus::samePeriodic(const Request& a, const Request& b)
            && a.start == b.start
            && a.count == b.count
            && a.moduleIndex == b.moduleIndex
-           && a.meterKind == b.meterKind;
-}
-void ModbusBus::clearPendingWrites()
-{
-    for (auto it = m_qHigh.begin(); it != m_qHigh.end(); ) {
-        if (it->type == ReqType::WriteCoil || it->type == ReqType::WriteCoils8)
-            it = m_qHigh.erase(it);
-        else
-            ++it;
-    }
+           && a.meterKind == b.meterKind
+           && a.verifyAfterWrite == b.verifyAfterWrite; // CHANGED
 }
 
 void ModbusBus::enqueueHigh(const Request &r)
 {
-    if (r.type == ReqType::WriteCoil || r.type == ReqType::WriteCoils8) {
-        for (auto it = m_qHigh.begin(); it != m_qHigh.end(); ) {
-            if (sameHighTarget(*it, r))
-                it = m_qHigh.erase(it);
-            else
-                ++it;
-        }
-    }
-
+    // CHANGED: важные команды не срезаем и не coalesce'им
     m_qHigh.push_back(r);
     pump();
 }
 
 void ModbusBus::enqueueNorm(const Request &r)
 {
-    // coalesce: оставляем только последний одинаковый периодический запрос
     for (auto it = m_qNorm.begin(); it != m_qNorm.end(); ++it) {
-        if (samePeriodic(*it, r)) return;
+        if (samePeriodic(*it, r))
+            return;
     }
     m_qNorm.push_back(r);
     pump();
@@ -533,7 +493,8 @@ void ModbusBus::enqueueNorm(const Request &r)
 void ModbusBus::enqueueLow(const Request &r)
 {
     for (auto it = m_qLow.begin(); it != m_qLow.end(); ++it) {
-        if (samePeriodic(*it, r)) return;
+        if (samePeriodic(*it, r))
+            return;
     }
     m_qLow.push_back(r);
     pump();
@@ -562,16 +523,8 @@ void ModbusBus::sendRequest(const Request &r)
     if (!m_modbus) { m_busy = false; return; }
 
     QModbusReply *reply = nullptr;
-    // qInfo().noquote() << QString("TX -> addr=%1  %2  start=%3 count=%4 module=%5 meter=%6")
-    //     .arg(r.slaveAddr).arg(reqTypeName(r.type)).arg(r.start).arg(r.count).arg(r.moduleIndex).arg(int(r.meterKind));
 
     switch (r.type) {
-    case ReqType::WriteCoil: {
-        QModbusDataUnit unit(QModbusDataUnit::Coils, r.coilIndex, 1);
-        unit.setValue(0, r.coilOn ? 1 : 0);
-        reply = m_modbus->sendWriteRequest(unit, r.slaveAddr);
-        break;
-    }
     case ReqType::WriteCoils8: {
         QModbusDataUnit unit(QModbusDataUnit::Coils, r.start, r.count);
         for (int i = 0; i < 8; ++i) {
@@ -617,7 +570,6 @@ void ModbusBus::sendRequest(const Request &r)
         const auto err = reply->error();
         const QString errStr = reply->errorString();
         const auto res = reply->result();
-        //qDebug() << "Get temp  "<< res.valueCount();
         reply->deleteLater();
 
         if (err != QModbusDevice::NoError) {
@@ -643,9 +595,6 @@ void ModbusBus::sendRequest(const Request &r)
                                        .arg(errStr)
                                        .arg(m_consecutiveTransportErrors));
 
-                // Не валим всю шину от одной ошибки.
-                // Уводим в reconnect только если давно нет ни одного успешного ответа
-                // и накопилась серия транспортных ошибок.
                 if (m_hadAnySuccessSinceConnect &&
                     m_consecutiveTransportErrors < m_transportFailThreshold) {
                     pump();
@@ -654,7 +603,6 @@ void ModbusBus::sendRequest(const Request &r)
 
                 if (!m_hadAnySuccessSinceConnect &&
                     m_consecutiveTransportErrors < 3) {
-                    // на старте можно быть чуть терпимее, но не бесконечно
                     pump();
                     return;
                 }
@@ -669,7 +617,6 @@ void ModbusBus::sendRequest(const Request &r)
 
         markRequestSuccess(r);
 
-        // ===== обработка чтения =====
         if (r.type == ReqType::ReadInputs) {
             quint8 bits = 0;
             for (int i = 0; i < res.valueCount() && i < 8; ++i)
@@ -680,28 +627,58 @@ void ModbusBus::sendRequest(const Request &r)
             quint8 bits = 0;
             for (int i = 0; i < res.valueCount() && i < 8; ++i)
                 if (res.value(i)) bits |= (1u << i);
+
             emit relaysUpdated(r.moduleIndex, bits);
+
+            // CHANGED: verify после записи
+            if (r.verifyAfterWrite) {
+                if (bits != r.expectedCoilsBits) {
+                    emit errorOccurred(QStringLiteral(
+                                           "Relay verify mismatch: addr=%1 module=%2 expected=0x%3 actual=0x%4 retry=%5/%6")
+                                           .arg(r.slaveAddr)
+                                           .arg(r.moduleIndex)
+                                           .arg(QString::number(r.expectedCoilsBits, 16).rightJustified(2, QLatin1Char('0')))
+                                           .arg(QString::number(bits, 16).rightJustified(2, QLatin1Char('0')))
+                                           .arg(r.retryCount)
+                                           .arg(r.maxRetries));
+
+                    if (r.retryCount < r.maxRetries) {
+                        Request wr;
+                        wr.type = ReqType::WriteCoils8;
+                        wr.slaveAddr = r.slaveAddr;
+                        wr.moduleIndex = r.moduleIndex;
+                        wr.start = 0;
+                        wr.count = 8;
+                        wr.coilsBits = r.expectedCoilsBits;
+                        wr.expectedCoilsBits = r.expectedCoilsBits;
+                        wr.retryCount = r.retryCount + 1;
+                        wr.maxRetries = r.maxRetries;
+
+                        m_busy = false;
+                        enqueueHigh(wr);
+                        return;
+                    }
+
+                    emit errorOccurred(QStringLiteral(
+                                           "Relay verify failed окончательно: addr=%1 module=%2 expected=0x%3 actual=0x%4")
+                                           .arg(r.slaveAddr)
+                                           .arg(r.moduleIndex)
+                                           .arg(QString::number(r.expectedCoilsBits, 16).rightJustified(2, QLatin1Char('0')))
+                                           .arg(QString::number(bits, 16).rightJustified(2, QLatin1Char('0'))));
+                }
+            }
         }
         else if (r.type == ReqType::ReadHolding && r.meterKind == MeterKind::ADL200_Inlet) {
-            // ADL200 holding registers: // 0x000B Voltage   (0.1V)
-            // 0x000C Current   (0.01A)// 0x000D Active P  (0.001kW = 1W)
-            // ...// 0x0011 Frequency (0.01Hz)
-            // Поэтому запрос делай start=0x000B, count=7
-
             if (res.valueCount() >= 7) {
                 const double U = res.value(0) * 0.1;
                 const double I = res.value(1) * 0.01;
-
-                // Active power лучше трактовать как signed (может быть отрицательная)
-                const double P = qint16(res.value(2)) * 1.0;  // 0.001kW => 1W
-
-                const double F = res.value(6) * 0.01;         // 0x0011, 0.01Hz
+                const double P = qint16(res.value(2)) * 1.0;
+                const double F = res.value(6) * 0.01;
 
                 emit inletMeterUpdated(U, I, P, F);
             }
         }
         else if (r.type == ReqType::ReadHolding && r.meterKind == MeterKind::DJSF_Test) {
-            // DJSF1352: start=0 count=10 => U/DPT/I/DCT/.../P/DP
             if (res.valueCount() >= 4) {
                 auto s16 = [&](int idx)->qint16 { return qint16(res.value(idx)); };
 
@@ -709,23 +686,38 @@ void ModbusBus::sendRequest(const Request &r)
                 const qint16 dptU = s16(1);
                 const qint16 rawI = s16(2);
                 const qint16 dptI = s16(3);
-                // const qint16 rawP = s16(8);
-                // const qint16 dptP = s16(9);
 
                 const double U = scaleDjsf(rawU, dptU);
                 const double I = scaleDjsf(rawI, dptI);
-                const double P = U*I;
+                const double P = U * I;
 
                 emit testMeterUpdated(U, I, P);
             }
         }
         else if (r.type == ReqType::ReadInputRegs && r.meterKind == MeterKind::SHT20_Temperature) {
-            // SHT20: 1 input register
             if (res.valueCount() >= 1) {
                 const qint16 rawT = qint16(res.value(0));
                 const double T = rawT * m_sht20TempScale;
                 emit temperatureUpdated(T);
             }
+        }
+
+        // CHANGED: после успешной записи ставим verify в среднюю очередь
+        if (r.type == ReqType::WriteCoils8) {
+            Request vr;
+            vr.type = ReqType::ReadCoils;
+            vr.slaveAddr = r.slaveAddr;
+            vr.moduleIndex = r.moduleIndex;
+            vr.start = 0;
+            vr.count = 8;
+            vr.verifyAfterWrite = true;
+            vr.expectedCoilsBits = r.expectedCoilsBits;
+            vr.retryCount = r.retryCount;
+            vr.maxRetries = r.maxRetries;
+
+            m_busy = false;
+            enqueueNorm(vr);
+            return;
         }
 
         m_busy = false;
@@ -743,7 +735,6 @@ void ModbusBus::clearQueues()
 
 double ModbusBus::scaleDjsf(qint16 value, qint16 dp)
 {
-    // value * 10^(dp-3)
     double out = double(value);
     int exp = int(dp) - 3;
     while (exp > 0) { out *= 10.0; --exp; }
