@@ -110,14 +110,26 @@ void LineIoManager::onInputsUpdated(int moduleIndex, quint8 bits)
 }
 
 // CHANGED
+
 void LineIoManager::onRelaysUpdated(int moduleIndex, quint8 bits)
 {
-    if (moduleIndex < 0 || moduleIndex >= MAX_MODULES)
+    Q_UNUSED(moduleIndex);
+    Q_UNUSED(bits);
+}
+
+void LineIoManager::applyModuleIfChanged(int moduleIndex, bool force)
+{
+    if (!m_bus) return;
+    if (!m_bus->isConnected()) return;
+    if (moduleIndex < 0 || moduleIndex >= MAX_MODULES) return;
+
+    const quint8 desired = m_desiredRelays[moduleIndex];
+
+    if (!force && desired == m_lastSentRelays[moduleIndex])
         return;
 
-    // подтверждаем только если фактическое состояние совпало с желаемым
-    if (bits == m_desiredRelays[moduleIndex])
-        m_lastSentRelays[moduleIndex] = bits;
+    m_bus->setModuleRelaysBits(moduleIndex, desired);
+    m_lastSentRelays[moduleIndex] = desired;
 }
 
 void LineIoManager::onBusOnline()
@@ -513,22 +525,6 @@ void LineIoManager::applyAllModules(bool force)
         applyModuleIfChanged(m, force);
 
     syncLineStatesFromDesired();
-}
-
-void LineIoManager::applyModuleIfChanged(int moduleIndex, bool force)
-{
-    if (!m_bus) return;
-    if (!m_bus->isConnected()) return;
-    if (moduleIndex < 0 || moduleIndex >= MAX_MODULES) return;
-
-    const quint8 desired = m_desiredRelays[moduleIndex];
-
-    if (!force && desired == m_lastSentRelays[moduleIndex])
-        return;
-
-    m_bus->setModuleRelaysBits(moduleIndex, desired);
-    // CHANGED: тут больше не помечаем как "отправлено".
-    // Подтверждение теперь идёт только через onRelaysUpdated().
 }
 
 bool LineIoManager::mapLineToRelayBits(int lineIndex, int &moduleIndex, int &bitMeas, int &bitWork) const
