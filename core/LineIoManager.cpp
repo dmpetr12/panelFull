@@ -117,21 +117,6 @@ void LineIoManager::onRelaysUpdated(int moduleIndex, quint8 bits)
     Q_UNUSED(bits);
 }
 
-void LineIoManager::applyModuleIfChanged(int moduleIndex, bool force)
-{
-    if (!m_bus) return;
-    if (!m_bus->isConnected()) return;
-    if (moduleIndex < 0 || moduleIndex >= MAX_MODULES) return;
-
-    const quint8 desired = m_desiredRelays[moduleIndex];
-
-    if (!force && desired == m_lastSentRelays[moduleIndex])
-        return;
-
-    m_bus->setModuleRelaysBits(moduleIndex, desired);
-    m_lastSentRelays[moduleIndex] = desired;
-}
-
 void LineIoManager::onBusOnline()
 {
     for (int i = 0; i < MAX_MODULES; ++i)
@@ -525,6 +510,21 @@ void LineIoManager::applyAllModules(bool force)
         applyModuleIfChanged(m, force);
 
     syncLineStatesFromDesired();
+}
+
+void LineIoManager::applyModuleIfChanged(int moduleIndex, bool force)
+{
+    if (!m_bus) return;
+    if (!m_bus->isConnected()) return;
+    if (moduleIndex < 0 || moduleIndex >= MAX_MODULES) return;
+
+    const quint8 desired = m_desiredRelays[moduleIndex];
+
+    if (!force && desired == m_lastSentRelays[moduleIndex])
+        return;
+
+    m_bus->setModuleRelaysBits(moduleIndex, desired);
+    m_lastSentRelays[moduleIndex] = desired;
 }
 
 bool LineIoManager::mapLineToRelayBits(int lineIndex, int &moduleIndex, int &bitMeas, int &bitWork) const
