@@ -22,6 +22,7 @@ public:
     Q_INVOKABLE void removeTest(int index);
     Q_INVOKABLE QVariantList getAllTests() const;
     Q_INVOKABLE void updateTestProperty(int index, const QString &key, const QVariant &value);
+    void updateWeekDays(int index, const QStringList &days);
 
 signals:
     void startTestRequested(QString testType);

@@ -157,6 +157,7 @@ public:
     Q_INVOKABLE bool addTest(const QVariantMap &data);
     Q_INVOKABLE bool removeTest(int index);
     Q_INVOKABLE bool updateTestProperty(int index, const QString &key, const QVariant &value);
+    Q_INVOKABLE bool updateWeekDays(int index, const QVariantList &days);
     Q_INVOKABLE bool writeLog(const QString &msg);
 
 signals:

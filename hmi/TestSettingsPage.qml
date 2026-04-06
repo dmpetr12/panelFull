@@ -12,16 +12,62 @@ Page {
     function loadEntry() {
         var all = panel.getAllTests()
         entry = (currentIndex >= 0 && currentIndex < all.length) ? all[currentIndex] : ({})
+        syncUiFromEntry()
     }
 
-    function saveWeekDays(days) {
-        panel.updateTestProperty(currentIndex, "weekDays", days)
-        panel.writeLog("Изменены weekDays: " + days.join(","))
-        entry.weekDays = days
+    function syncUiFromEntry() {
+        var now = new Date()
+
+        periodBox.currentIndex = Math.max(0, periodBox.model.indexOf(entry.period || "один раз"))
+        testTypeBox.currentIndex = Math.max(0, testTypeBox.model.indexOf(entry.testType || "Функциональный"))
+
+        timeChenge.ready = false
+        weekRow.ready = false
+
+        timeChenge.year = now.getFullYear()
+        timeChenge.month = now.getMonth() + 1
+        timeChenge.day = now.getDate()
+        timeChenge.hour = now.getHours()
+        timeChenge.minute = now.getMinutes()
+
+        if (entry.startDate && entry.startDate.length === 10) {
+            var d = entry.startDate.split("-")
+            if (d.length === 3) {
+                var y = parseInt(d[0])
+                var m = parseInt(d[1])
+                var dd = parseInt(d[2])
+
+                if (!isNaN(y))
+                    timeChenge.year = y
+                if (!isNaN(m))
+                    timeChenge.month = m
+                if (!isNaN(dd))
+                    timeChenge.day = dd
+            }
+        }
+
+        if (entry.startTime && entry.startTime.length >= 5) {
+            var t = entry.startTime.split(":")
+            if (t.length >= 2) {
+                var hh = parseInt(t[0])
+                var mm = parseInt(t[1])
+
+                if (!isNaN(hh))
+                    timeChenge.hour = hh
+                if (!isNaN(mm))
+                    timeChenge.minute = mm
+            }
+        }
+
+        weekRow.localDays = entry.weekDays ? entry.weekDays.slice(0) : []
+
+        timeChenge.ready = true
+        weekRow.ready = true
     }
 
     Component.onCompleted: loadEntry()
     onVisibleChanged: if (visible) loadEntry()
+    onCurrentIndexChanged: loadEntry()
 
     header: ToolBar {
         height: 110
@@ -85,15 +131,23 @@ Page {
                 font.pixelSize: 34
                 model: ["один раз", "ежедневно", "дни недели", "раз в месяц", "раз в 3 месяца", "раз в полгода", "раз в год"]
 
-                Component.onCompleted: {
-                    periodBox.currentIndex = model.indexOf(entry.period || "один раз")
-                }
-
                 onActivated: {
+                    if (settingsPage.currentIndex < 0)
+                        return
+
                     var value = model[currentIndex]
                     panel.updateTestProperty(settingsPage.currentIndex, "period", value)
                     panel.writeLog("period=" + value)
                     entry.period = value
+
+                    if (value !== "дни недели") {
+                        weekRow.localDays = []
+                        weekRow.ready = false
+                        panel.updateWeekDays(settingsPage.currentIndex, [])
+                        panel.writeLog("weekDays cleared")
+                        entry.weekDays = []
+                        weekRow.ready = true
+                    }
                 }
 
                 popup: Popup {
@@ -144,30 +198,13 @@ Page {
                 property int minute: new Date().getMinutes()
                 property bool ready: false
 
-                Component.onCompleted: {
-                    if (entry.startDate && entry.startDate.length === 10) {
-                        var d = entry.startDate.split("-")
-                        if (d.length === 3) {
-                            year = parseInt(d[0])
-                            month = parseInt(d[1])
-                            day = parseInt(d[2])
-                        }
-                    }
-
-                    if (entry.startTime && entry.startTime.length >= 5) {
-                        var t = entry.startTime.split(":")
-                        if (t.length >= 2) {
-                            hour = parseInt(t[0])
-                            minute = parseInt(t[1])
-                        }
-                    }
-
-                    ready = true
-                }
-
                 function saveDate() {
-                    if (!ready)
+                    if (!ready || settingsPage.currentIndex < 0)
                         return
+
+                    month = Math.max(1, Math.min(month, 12))
+                    day = Math.max(1, Math.min(day, 31))
+
                     var s = year + "-" + ("0" + month).slice(-2) + "-" + ("0" + day).slice(-2)
                     panel.updateTestProperty(settingsPage.currentIndex, "startDate", s)
                     panel.writeLog("startDate=" + s)
@@ -175,8 +212,12 @@ Page {
                 }
 
                 function saveTime() {
-                    if (!ready)
+                    if (!ready || settingsPage.currentIndex < 0)
                         return
+
+                    hour = Math.max(0, Math.min(hour, 23))
+                    minute = Math.max(0, Math.min(minute, 59))
+
                     var s = ("0" + hour).slice(-2) + ":" + ("0" + minute).slice(-2)
                     panel.updateTestProperty(settingsPage.currentIndex, "startTime", s)
                     panel.writeLog("startTime=" + s)
@@ -307,6 +348,7 @@ Page {
 
                 ColumnLayout {
                     spacing: 10
+                    visible: periodBox.currentText === "дни недели"
 
                     Label {
                         text: "Дни недели:"
@@ -318,6 +360,8 @@ Page {
                         spacing: 10
                         Layout.fillWidth: true
 
+                        property bool ready: false
+
                         property var daysList: [
                             { short: "Пн", key: "Mon" },
                             { short: "Вт", key: "Tue" },
@@ -328,11 +372,14 @@ Page {
                             { short: "Вс", key: "Sun" }
                         ]
 
-                        property var localDays: (entry.weekDays ? entry.weekDays.slice(0) : [])
+                        property var localDays: []
 
                         function saveWeekDaysInternal(days) {
+                            if (settingsPage.currentIndex < 0)
+                                return
+
                             localDays = days
-                            panel.updateTestProperty(settingsPage.currentIndex, "weekDays", days)
+                            panel.updateWeekDays(settingsPage.currentIndex, days)
                             panel.writeLog("weekDays=" + days.join(","))
                             entry.weekDays = days
                         }
@@ -356,14 +403,20 @@ Page {
                                 }
 
                                 onToggled: {
+                                    if (!weekRow.ready)
+                                        return
+
                                     var arr = weekRow.localDays.slice(0)
                                     var pos = arr.indexOf(modelData.key)
+
                                     if (checked && pos === -1)
                                         arr.push(modelData.key)
+
                                     if (!checked && pos !== -1)
                                         arr.splice(pos, 1)
+
                                     weekRow.localDays = arr
-                                    saveWeekDaysInternal(arr)
+                                    weekRow.saveWeekDaysInternal(arr)
                                 }
                             }
                         }
@@ -384,11 +437,10 @@ Page {
                 font.pixelSize: 36
                 model: ["Функциональный", "На время"]
 
-                Component.onCompleted: {
-                    testTypeBox.currentIndex = model.indexOf(entry.testType || "Функциональный")
-                }
-
                 onActivated: {
+                    if (settingsPage.currentIndex < 0)
+                        return
+
                     var value = model[currentIndex]
                     panel.updateTestProperty(settingsPage.currentIndex, "testType", value)
                     panel.writeLog("testType=" + value)

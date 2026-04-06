@@ -53,6 +53,7 @@ public:
     bool addTest(const QVariantMap &data);
     bool removeTest(int index);
     bool updateTestProperty(int index, const QString &key, const QVariant &value);
+    bool updateWeekDays(int index, const QStringList &days);
     bool writeLog(const QString &msg);
 
 

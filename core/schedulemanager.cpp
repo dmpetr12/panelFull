@@ -152,8 +152,6 @@ void ScheduleManager::updateTestProperty(int index, const QString &key, const QV
         e.startTime = QTime::fromString(value.toString(), QStringLiteral("HH:mm"));
     else if (key == QStringLiteral("testType"))
         e.testType = value.toString();
-    else if (key == QStringLiteral("weekDays"))
-        e.weekDays = value.toStringList();
     else
         return;
 
@@ -209,4 +207,17 @@ void ScheduleManager::checkSchedule()
                                  planned.toString(QStringLiteral("yyyy-MM-dd HH:mm:ss"))));
         return;
     }
+}
+
+void ScheduleManager::updateWeekDays(int index, const QStringList &days)
+{
+    if (index < 0 || index >= m_tests.size())
+        return;
+
+    m_tests[index].weekDays = days;
+
+    autoSave();
+
+    emit logMessage(QStringLiteral("Test updated: [weekDays] for %1")
+                        .arg(m_tests[index].testType));
 }

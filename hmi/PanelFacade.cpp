@@ -548,6 +548,19 @@ bool PanelFacade::updateTestProperty(int index, const QString &key, const QVaria
     });
 }
 
+bool PanelFacade::updateWeekDays(int index, const QVariantList &days)
+{
+    QJsonArray arr;
+    for (const QVariant &v : days)
+        arr.append(v.toString());
+
+    return sendCommand({
+        {"cmd", "updateWeekDays"},
+        {"index", index},
+        {"days", arr}
+    });
+}
+
 bool PanelFacade::writeLog(const QString &msg)
 {
     return sendCommand({

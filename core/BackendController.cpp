@@ -1095,6 +1095,15 @@ bool BackendController::updateTestProperty(int index, const QString &key, const 
     return true;
 }
 
+bool BackendController::updateWeekDays(int index, const QStringList &days)
+{
+    if (!m_scheduleManager)
+        return false;
+
+    m_scheduleManager->updateWeekDays(index, days);
+    return true;
+}
+
 bool BackendController::writeLog(const QString &msg)
 {
     log(msg);

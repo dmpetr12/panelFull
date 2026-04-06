@@ -320,6 +320,21 @@ void LocalIpcServer::processMessage(QLocalSocket *socket, const QByteArray &data
                          });
         return;
     }
+    if (cmd == "updateWeekDays") {
+        const int index = req.value("index").toInt(-1);
+
+        QStringList days;
+        const QJsonArray arr = req.value("days").toArray();
+        for (const QJsonValue &v : arr)
+            days << v.toString();
+
+        const bool ok = m_backend->updateWeekDays(index, days);
+
+        sendJson(socket, {
+                             {"ok", ok}
+                         });
+        return;
+    }
 
     if (cmd == "writeLog") {
         const QString message = req.value("message").toString();

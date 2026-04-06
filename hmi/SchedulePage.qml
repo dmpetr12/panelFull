@@ -13,6 +13,26 @@ Page {
         if (currentRow >= list.count)
             currentRow = -1
     }
+    function weekDaysToText(weekDays) {
+        if (!weekDays)
+            return "-"
+
+        var names = {
+            "Mon": "Пн",
+            "Tue": "Вт",
+            "Wed": "Ср",
+            "Thu": "Чт",
+            "Fri": "Пт",
+            "Sat": "Сб",
+            "Sun": "Вс"
+        }
+
+        var arr = []
+        for (var i = 0; i < weekDays.length; ++i)
+            arr.push(names[weekDays[i]] || weekDays[i])
+
+        return arr.length > 0 ? arr.join(", ") : "-"
+    }
 
     Component.onCompleted: refresh()
     onVisibleChanged: if (visible) refresh()
@@ -188,27 +208,10 @@ Page {
                             Layout.preferredWidth: 90
                             font.pixelSize: 24
                         }
-
                         Label {
-                            text: {
-                                if (modelData.period === "дни недели" &&
-                                        modelData.weekDays &&
-                                        modelData.weekDays.length > 0) {
-                                    const names = {
-                                        "Mon": "Пн",
-                                        "Tue": "Вт",
-                                        "Wed": "Ср",
-                                        "Thu": "Чт",
-                                        "Fri": "Пт",
-                                        "Sat": "Сб",
-                                        "Sun": "Вс"
-                                    }
-                                    return modelData.weekDays.map(function(d) {
-                                        return names[d] || d
-                                    }).join(", ")
-                                }
-                                return "-"
-                            }
+                            text: modelData.period === "дни недели"
+                                  ? page.weekDaysToText(modelData.weekDays)
+                                  : "-"
                             Layout.preferredWidth: 280
                             font.pixelSize: 22
                             elide: Text.ElideRight

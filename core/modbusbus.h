@@ -187,7 +187,7 @@ private:
     QTimer m_reconnect;
     bool m_busOnline = false;
     bool m_wantConnected = false;
-    int m_reconnectMs = 2000;
+    int m_reconnectMs = 10000;
 
     int m_consecutiveTransportErrors = 0;
     int m_transportFailThreshold = 10;
