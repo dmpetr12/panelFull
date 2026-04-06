@@ -42,7 +42,7 @@ Rectangle {
         syncCountdownFromSelection()
 
         if (countdown <= 0) {
-            console.log("Длительность теста должна быть больше нуля")
+            //console.log("Длительность теста должна быть больше нуля")
             return
         }
 
@@ -58,7 +58,7 @@ Rectangle {
 
         if (!ok) {
             commandLocked = false
-            console.log("Не удалось запустить тест")
+            //console.log("Не удалось запустить тест")
             return
         }
 

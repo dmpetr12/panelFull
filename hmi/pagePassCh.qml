@@ -144,7 +144,7 @@ Rectangle {
                         }
 
                         if (panel.changePassword(newPasswordBuffer)) {
-                            console.log("Пароль изменён")
+                            //console.log("Пароль изменён")
                             stackViewList.replace("pageAjaste.qml")
                         } else {
                             errorText = "Не удалось изменить пароль"

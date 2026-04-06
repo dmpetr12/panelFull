@@ -48,7 +48,7 @@ Rectangle {
         target: panel
         function onChanged() {
             if (lastBackendConnected && !panel.connected) {
-                console.log("Backend не подключён")
+                //console.log("Backend не подключён")
             }
 
             lastBackendConnected = panel.connected

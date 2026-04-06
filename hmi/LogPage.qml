@@ -227,7 +227,7 @@ Page {
 
                     lastClickMs = now
                     const res = panel.exportLogsToUsb()
-                    console.log(res)
+                    //console.log(res)
                     infoPopup.show(res)
                 }
             }
