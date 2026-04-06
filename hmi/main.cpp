@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
 
 
     PanelFacade panel;
-    log(QString("Log level from backend:: %1").arg(panel.logLevel()));
+    //log(QString("Log level from backend:: %1").arg(panel.logLevel()));
     if (panel.logLevel() != "DEBUG") app.setOverrideCursor(QCursor(Qt::BlankCursor));
 
     qmlRegisterType<Line>("App", 1, 0, "Line");
