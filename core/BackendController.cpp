@@ -492,6 +492,17 @@ void BackendController::setupLineIo()
                      this, [this](int) {
                          emit stateChanged();
                      });
+    connect(m_lineIoManager, &LineIoManager::programFireOnRequested,
+            this, [this]() {
+                log("Кнопка: программный пожар ВКЛ");
+                setForcedFire(true);
+            });
+
+    connect(m_lineIoManager, &LineIoManager::programFireOffRequested,
+            this, [this]() {
+                log("Кнопка: программный пожар ВЫКЛ");
+                setForcedFire(false);
+            });
 }
 
 void BackendController::setupTesting()

@@ -91,6 +91,9 @@ signals:
 
     void emergencyStop();
 
+    void programFireOnRequested();
+    void programFireOffRequested();
+
 private:
     enum class Mode {
         Normal,
@@ -105,6 +108,9 @@ private:
 
     // module0 inputs bits
     static constexpr int IN_FIRE     = 0; // IN1
+    static constexpr int IN_PROG_FIRE_ON  = 1; // IN2 программный пожар ВКЛ
+    static constexpr int IN_PROG_FIRE_OFF = 2; // IN3 программный пожар ВЫКЛ
+
     static constexpr int IN_M0_LINE0 = 5; // IN6
     static constexpr int IN_M0_LINE1 = 6; // IN7
     static constexpr int IN_M0_LINE2 = 7; // IN8
@@ -115,6 +121,7 @@ private:
 
 private:
     void updateFireFromModule0(quint8 bits0);
+    void processProgramFireButtons(quint8 oldBits, quint8 newBits);
     void cancelTestsDueToEmergency();
 
     Mode currentMode() const;

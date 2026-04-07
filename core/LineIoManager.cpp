@@ -91,11 +91,12 @@ void LineIoManager::onInputsUpdated(int moduleIndex, quint8 bits)
 
     if (m_lastInputs[moduleIndex] == bits)
         return;
-
+    const quint8 oldBits = m_lastInputs[moduleIndex];
     m_lastInputs[moduleIndex] = bits;
 
     if (moduleIndex == MODULE0) {
         updateFireFromModule0(bits);
+        processProgramFireButtons(oldBits, bits);
         recomputeDesiredAll();
         applyAllModules(true);
         return;
@@ -152,6 +153,21 @@ void LineIoManager::updateFireFromModule0(quint8 bits0)
 
     if (prevFire != newFire)
         emit fireChanged(newFire);
+}
+
+void LineIoManager::processProgramFireButtons(quint8 oldBits, quint8 newBits)
+{
+    const bool oldProgFireOn  = bit(oldBits, IN_PROG_FIRE_ON);
+    const bool newProgFireOn  = bit(newBits, IN_PROG_FIRE_ON);
+
+    const bool oldProgFireOff = bit(oldBits, IN_PROG_FIRE_OFF);
+    const bool newProgFireOff = bit(newBits, IN_PROG_FIRE_OFF);
+
+    if (!oldProgFireOn && newProgFireOn)
+        emit programFireOnRequested();
+
+    if (!oldProgFireOff && newProgFireOff)
+        emit programFireOffRequested();
 }
 
 void LineIoManager::setProgramFire(bool on)
