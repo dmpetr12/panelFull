@@ -667,7 +667,7 @@ bool BackendController::stopCurrentTest()
 
     m_testController->stopTest(-1);
 
-    emit logMessage(QStringLiteral("Текущий тест остановлен"));
+    //emit logMessage(QStringLiteral("Текущий тест остановлен"));
     emit stateChanged();
     return true;
 }

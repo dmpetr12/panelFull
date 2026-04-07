@@ -15,6 +15,7 @@ Rectangle {
     property bool pendingExit: false
     property bool commandLocked: false
     property bool stopInProgress: false
+    property bool initializingStop: false
 
     function isRunning() {
         return panel.testRunning
@@ -27,7 +28,7 @@ Rectangle {
     }
 
     function stopCurrent() {
-        if (commandLocked)
+        if (stopInProgress)
             return
 
         commandLocked = true
@@ -70,8 +71,8 @@ Rectangle {
             return
 
         if (panel.testRunning) {
-            pendingExit = true
-            stopCurrent()
+            stopInProgress = true
+            panel.stopCurrentTest()
             return
         }
 
@@ -101,16 +102,27 @@ Rectangle {
         function onChanged() {
             win.testStart = panel.testRunning
 
-            // backend ответил/состояние обновилось — кнопку снова можно жать
-            commandLocked = false
-
             if (panel.testRunning) {
                 if (!countdownTimer.running && countdown > 0)
                     countdownTimer.start()
             } else {
-                stopInProgress = false
                 countdownTimer.stop()
                 countdown = 0
+            }
+
+            if (initializingStop) {
+                if (!panel.testRunning) {
+                    initializingStop = false
+                    stopInProgress = false
+                    commandLocked = false
+                }
+                return
+            }
+
+            commandLocked = false
+
+            if (!panel.testRunning) {
+                stopInProgress = false
             }
 
             if (pendingExit && !panel.testRunning) {
@@ -122,6 +134,9 @@ Rectangle {
 
     Component.onCompleted: {
         loadTitle()
+        initializingStop = true
+        commandLocked = true
+        stopInProgress = true
         panel.stopCurrentTest()
         win.testStart = panel.testRunning
     }
