@@ -61,6 +61,7 @@ void ModbusRtuSlave::recreateServer()
             [this](QModbusDevice::State state) {
                 if (state == QModbusDevice::ConnectedState) {
                     m_reconnect.stop();
+                    m_portUnavailableLogged = false;
 
                     if (!m_online) {
                         m_online = true;
@@ -82,11 +83,9 @@ void ModbusRtuSlave::recreateServer()
                 if (error == QModbusDevice::NoError)
                     return;
 
-                const QString reason = m_server ? m_server->errorString()
-                                                : QStringLiteral("unknown error");
-
-                emit errorOccurred(QStringLiteral("Modbus RTU server error on %1: %2")
-                                       .arg(m_portName, reason));
+                const QString reason = m_server
+                                           ? m_server->errorString()
+                                           : QStringLiteral("unknown error");
 
                 switch (error) {
                 case QModbusDevice::ConnectionError:
@@ -94,15 +93,36 @@ void ModbusRtuSlave::recreateServer()
                 case QModbusDevice::WriteError:
                 case QModbusDevice::TimeoutError:
                 case QModbusDevice::UnknownError:
-                    // ❗ не ретраим если порт отсутствует
-                    if (!isPermanentPortError(reason)) {
-                        scheduleReconnect(reason);
-                    } else {
-                        log(QStringLiteral("Modbus RTU stopped: port not available"));
+                {
+                    if (isPermanentPortError(reason)) {
+                        if (!m_portUnavailableLogged) {
+                            m_portUnavailableLogged = true;
+
+                            const QString msg =
+                                QStringLiteral("Modbus RTU stopped: port %1 not available (%2)")
+                                    .arg(m_portName, reason);
+
+                            //log(msg);
+                            emit errorOccurred(msg);
+                        }
+
                         if (m_reconnect.isActive())
                             m_reconnect.stop();
+                    } else {
+                        m_portUnavailableLogged = false;
+
+                        const QString msg =
+                            QStringLiteral("Modbus RTU server error on %1: %2")
+                                .arg(m_portName, reason);
+
+                        //log(msg);
+                        emit errorOccurred(msg);
+
+                        scheduleReconnect(reason);
                     }
                     break;
+                }
+
                 default:
                     break;
                 }

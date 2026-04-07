@@ -60,4 +60,5 @@ private:
     bool m_online = false;
     QTimer m_reconnect;
     QString m_lastError= "";
+    bool m_portUnavailableLogged = false;
 };
