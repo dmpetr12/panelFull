@@ -100,6 +100,8 @@ inline QJsonObject deviceSnapshotToJson(const DeviceSnapshot &s)
         lines.append(lineSnapshotToJson(line));
     obj["lines"] = lines;
 
+    obj["doorOpen"] = s.doorOpen;
+
     obj["logLevel"] = s.logLevel;
 
     return obj;

@@ -76,5 +76,7 @@ struct DeviceSnapshot
     std::vector<LineSnapshot> lines;
     BatterySnapshot battery;
 
+    bool doorOpen = false;
+
     QString logLevel = "INFO";
 };

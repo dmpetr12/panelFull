@@ -96,6 +96,7 @@ void LineIoManager::onInputsUpdated(int moduleIndex, quint8 bits)
 
     if (moduleIndex == MODULE0) {
         updateFireFromModule0(bits);
+        updateDoorFromModule0(bits);
         processProgramFireButtons(oldBits, bits);
         recomputeDesiredAll();
         applyAllModules(true);
@@ -168,6 +169,17 @@ void LineIoManager::processProgramFireButtons(quint8 oldBits, quint8 newBits)
 
     if (!oldProgFireOff && newProgFireOff)
         emit programFireOffRequested();
+}
+
+void LineIoManager::updateDoorFromModule0(quint8 bits0)
+{
+    const bool newDoorOpen = bit(bits0, IN_DOOR);  // замкнули = дверь открыта
+
+    if (m_doorOpen == newDoorOpen)
+        return;
+
+    m_doorOpen = newDoorOpen;
+    emit doorOpenChanged(m_doorOpen);
 }
 
 void LineIoManager::setProgramFire(bool on)

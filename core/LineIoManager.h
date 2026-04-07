@@ -22,6 +22,7 @@ class LineIoManager : public QObject
     Q_PROPERTY(int  singleLineTestLine READ singleLineTestLine NOTIFY singleLineTestLineChanged)
 
     Q_PROPERTY(bool fireInput READ fireInput NOTIFY fireChanged)
+    Q_PROPERTY(bool doorOpen READ doorOpen NOTIFY doorOpenChanged)
 
 public:
     explicit LineIoManager(QObject *parent = nullptr);
@@ -74,6 +75,7 @@ public:
     void setAlarmLamp(bool on);
 
     bool noMeasTestActive() const { return m_noMeasTestActive; }
+    bool doorOpen() const { return m_doorOpen; }
 
 signals:
     void fireChanged(bool active);
@@ -93,6 +95,7 @@ signals:
 
     void programFireOnRequested();
     void programFireOffRequested();
+    void doorOpenChanged(bool open);
 
 private:
     enum class Mode {
@@ -110,6 +113,7 @@ private:
     static constexpr int IN_FIRE     = 0; // IN1
     static constexpr int IN_PROG_FIRE_ON  = 1; // IN2 программный пожар ВКЛ
     static constexpr int IN_PROG_FIRE_OFF = 2; // IN3 программный пожар ВЫКЛ
+    static constexpr int IN_DOOR          = 3; // IN4 дверь
 
     static constexpr int IN_M0_LINE0 = 5; // IN6
     static constexpr int IN_M0_LINE1 = 6; // IN7
@@ -122,6 +126,7 @@ private:
 private:
     void updateFireFromModule0(quint8 bits0);
     void processProgramFireButtons(quint8 oldBits, quint8 newBits);
+    void updateDoorFromModule0(quint8 bits0);
     void cancelTestsDueToEmergency();
 
     Mode currentMode() const;
@@ -182,6 +187,7 @@ private:
     int m_lastMes = -1;
 
     bool m_alarmLampOn = false;
+    bool m_doorOpen = false;
 
     enum class TwoStepKind { None, Step1, Step2, Step3 };
     TwoStepKind m_twoStepKind = TwoStepKind::None;

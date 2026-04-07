@@ -379,6 +379,7 @@ DeviceSnapshot BackendController::snapshot() const
         s.singleLineTestLine = m_lineIoManager->singleLineTestLine();
 
         s.noMeasTestActive = m_lineIoManager->noMeasTestActive();
+        s.doorOpen = m_lineIoManager->doorOpen();
     }
 
     if (m_lines) {
@@ -503,6 +504,14 @@ void BackendController::setupLineIo()
                 log("Кнопка: программный пожар ВЫКЛ");
                 setForcedFire(false);
             });
+
+    QObject::connect(m_lineIoManager, &LineIoManager::doorOpenChanged,
+                     this, [this](bool open) {
+                         if (open)
+                             log(QStringLiteral("Дверь шкафа открыта"));
+
+                         emit stateChanged();
+                     });
 }
 
 void BackendController::setupTesting()
@@ -1210,6 +1219,11 @@ ValueProvider* BackendController::temperature() const
 QVariantMap BackendController::currentUiEvent() const
 {
     return m_currentUiEvent;
+}
+
+bool BackendController::doorOpen() const
+{
+    return m_lineIoManager ? m_lineIoManager->doorOpen() : false;
 }
 
 void BackendController::setCurrentUiEvent(const QString &code,

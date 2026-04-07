@@ -216,6 +216,9 @@ quint16 readInputRegister(BackendController *backend, int address)
     if (address == InRegBatteryState)
         return encodeBatteryState(backend);
 
+    if (address == InRegDoorState)
+    return backend->doorOpen() ? DoorOpen : DoorClosed;
+
     if (address == InRegInputVoltage)
         return readScaled10(backend->inletU());
 

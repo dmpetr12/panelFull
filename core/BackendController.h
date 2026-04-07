@@ -78,6 +78,8 @@ public:
     ValueProvider* testI() const;
     ValueProvider* testP() const;
     ValueProvider* temperature() const;
+    bool doorOpen() const;
+
 
     ModbusTcpServer* modbusTcpServer() const;
 

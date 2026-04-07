@@ -28,7 +28,7 @@ enum InputRegAddress : int
     InRegLinesCount = 2,
     InRegBatteryState = 3,
     InRegEmergencyState = 4,     // 30005
-    InRegReserved06 = 5,
+    InRegDoorState = 5,
     InRegReserved07 = 6,
     InRegReserved08 = 7,
 
@@ -117,6 +117,12 @@ enum EmergencyStateCode : quint16
     EmergencyFireAndStop = 3
 };
 
+enum DoorStateCode : quint16
+{
+    DoorClosed = 0,
+    DoorOpen = 1
+};
+
 int lineBase(int lineIndex);
 
 quint16 readInputRegister(BackendController *backend, int address);
@@ -159,7 +165,7 @@ quint16 toScaled100(double v);
 30003	Input Register	Lines Count	uint16	Количество линий
 30004	Input Register	Battery State	uint16	Состояние батареи
 30005	Input Register	Emergency State	uint16	Состояние аварийных команд FIRE/STOP
-30006	Input Register	Reserved	uint16	Резерв
+30006	Input Register	Door State	uint16	0 = дверь закрыта 1 = дверь открыта
 30007	Input Register	Reserved	uint16	Резерв
 30008	Input Register	Reserved	uint16	Резерв
 Состояние шкафа (30002)
