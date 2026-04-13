@@ -171,7 +171,7 @@ private:
     int m_addrSht20 = 12; // SHT20
 
     // SHT20 temperature
-    int m_sht20TempReg = 0x0301;
+    int m_sht20TempReg = 0x0300;
     double m_sht20TempScale = 0.1;
 
     int m_sht20PollDivider = 0;

@@ -668,7 +668,7 @@ void ModbusBus::sendRequest(const Request &r)
                 emit testMeterUpdated(U, I, P);
             }
         }
-        else if (r.type == ReqType::ReadInputRegs && r.meterKind == MeterKind::SHT20_Temperature) {
+        else if (r.type == ReqType::ReadHolding && r.meterKind == MeterKind::SHT20_Temperature) {
             if (res.valueCount() >= 1) {
                 const qint16 rawT = qint16(res.value(0));
                 const double T = rawT * m_sht20TempScale;

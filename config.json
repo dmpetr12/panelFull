@@ -4,7 +4,7 @@
   "numLines": 25,
   "maxRelayModules": 1,
   "serialPort": "/dev/rs485_internal",
-  "tempReg": 769,
+  "tempReg": 768,
 
   "modbusRtu": {
     "enabled": true,
