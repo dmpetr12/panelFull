@@ -341,7 +341,7 @@ void ModbusBus::normalTick()
             m_sht20PollDivider = 0;
 
             Request r;
-            r.type = ReqType::ReadInputRegs;
+            r.type = ReqType::ReadHolding;
             r.slaveAddr = m_addrSht20;
             r.start = m_sht20TempReg;
             r.count = 1;
