@@ -34,7 +34,7 @@ public:
     void setSht20Addr(int addr);                 // SHT20 (default 12)
 
     // SHT20 параметры (только температура)
-    void setSht20TempInputReg(int reg);          // default 0x0301
+    void setSht20TempInputReg(int reg);          // default 0x0300
     void setSht20TempScale(double scale);        // default 0.1
 
     Q_INVOKABLE void connectDevice();
@@ -156,8 +156,8 @@ private:
     QModbusRtuSerialClient *m_modbus = nullptr;
     QString m_portName;
     int m_baudRate = 9600;
-    int m_timeoutMs = 350;
-    int m_retries = 0;
+    int m_timeoutMs = 800;// поменял с 350 на 800
+    int m_retries = 1;// поменял с 0 на 1
 
     int m_relayModuleCount = 1;
     int m_relayBaseAddr = 1;
