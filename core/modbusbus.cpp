@@ -583,6 +583,27 @@ void ModbusBus::sendRequest(const Request &r)
         const auto err = reply->error();
         const QString errStr = reply->errorString();
         const auto res = reply->result();
+
+        if (r.slaveAddr == m_addrSht20) {
+            QString values;
+            for (uint i = 0; i < res.valueCount(); ++i) {
+                if (!values.isEmpty())
+                    values += ", ";
+                values += QString::number(res.value(i));
+            }
+
+            qDebug().noquote()
+                << QString("SHT20 addr=%1 type=%2 start=0x%3 count=%4 err=%5 errStr='%6' valueCount=%7 values=[%8]")
+                       .arg(r.slaveAddr)
+                       .arg(reqTypeName(r.type))
+                       .arg(r.start, 0, 16)
+                       .arg(r.count)
+                       .arg(int(err))
+                       .arg(errStr)
+                       .arg(res.valueCount())
+                       .arg(values);
+        }
+
         reply->deleteLater();
 
         if (err != QModbusDevice::NoError) {
