@@ -15,6 +15,7 @@ int AppConfig::timeTest() const { return m_timeTest; }
 int AppConfig::numLines() const { return m_numLines; }
 int AppConfig::maxRelayModules() const { return m_maxRelayModules; }
 QString AppConfig::serialPort() const { return m_serialPort; }
+int AppConfig::tempReg() const { return m_tempReg; }
 
 bool AppConfig::modbusRtuEnabled() const { return m_modbusRtu.enabled; }
 QString AppConfig::modbusRtuDevice() const { return m_modbusRtu.device; }
@@ -88,6 +89,9 @@ bool AppConfig::load(const QString &filePath)
 
     if (obj.contains("serialPort") && obj["serialPort"].isString())
         m_serialPort = obj["serialPort"].toString(m_serialPort);
+
+    if (obj.contains("tempReg") && obj["tempReg"].isDouble())
+        m_tempReg = obj["tempReg"].toInt(m_tempReg);
 
     if (obj.contains("modbusRtu") && obj["modbusRtu"].isObject()) {
         const QJsonObject rtu = obj["modbusRtu"].toObject();
@@ -201,6 +205,7 @@ bool AppConfig::save(const QString &filePath) const
     obj["numLines"] = m_numLines;
     obj["maxRelayModules"] = m_maxRelayModules;
     obj["serialPort"] = m_serialPort;
+    obj["tempReg"] = m_tempReg;
 
     QJsonObject rtu;
     rtu["enabled"] = m_modbusRtu.enabled;

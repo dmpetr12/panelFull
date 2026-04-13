@@ -12,6 +12,7 @@ class AppConfig : public QObject
     Q_PROPERTY(int numLines READ numLines NOTIFY configChanged)
     Q_PROPERTY(int maxRelayModules READ maxRelayModules NOTIFY configChanged)
     Q_PROPERTY(QString serialPort READ serialPort NOTIFY configChanged)
+    Q_PROPERTY(int tempReg READ tempReg NOTIFY configChanged)
 
     Q_PROPERTY(bool modbusRtuEnabled READ modbusRtuEnabled NOTIFY configChanged)
     Q_PROPERTY(QString modbusRtuDevice READ modbusRtuDevice NOTIFY configChanged)
@@ -103,6 +104,7 @@ public:
     int numLines() const;
     int maxRelayModules() const;
     QString serialPort() const;
+    int tempReg() const;
 
     bool modbusRtuEnabled() const;
     QString modbusRtuDevice() const;
@@ -153,6 +155,7 @@ private:
     int m_numLines = 25;
     int m_maxRelayModules = 1;
     QString m_serialPort = "/dev/rs485_internal";
+    int m_tempReg=0x301;
 
     ModbusRtuSettings m_modbusRtu;
     ModbusTcpSettings m_modbusTcp;

@@ -34,7 +34,7 @@ public:
     void setSht20Addr(int addr);                 // SHT20 (default 12)
 
     // SHT20 параметры (только температура)
-    void setSht20TempInputReg(int reg);          // default 0x0001
+    void setSht20TempInputReg(int reg);          // default 0x0301
     void setSht20TempScale(double scale);        // default 0.1
 
     Q_INVOKABLE void connectDevice();
@@ -171,7 +171,7 @@ private:
     int m_addrSht20 = 12; // SHT20
 
     // SHT20 temperature
-    int m_sht20TempReg = 0x0001;
+    int m_sht20TempReg = 0x0301;
     double m_sht20TempScale = 0.1;
 
     int m_sht20PollDivider = 0;

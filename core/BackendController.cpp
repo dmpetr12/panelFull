@@ -303,7 +303,7 @@ void BackendController::setupBus()
     m_bus->setTestMeterAddr(11);
     m_bus->setSht20Addr(12);
 
-    m_bus->setSht20TempInputReg(0x0001);
+    m_bus->setSht20TempInputReg(m_config->tempReg());
     m_bus->setSht20TempScale(0.1);
 }
 
