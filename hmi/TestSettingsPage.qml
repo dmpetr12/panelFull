@@ -124,10 +124,8 @@ Page {
 
             ComboBox {
                 id: periodBox
-                width: 600
-                implicitWidth: width
-                height: 50
-                implicitHeight: height
+                Layout.preferredWidth: 600
+                Layout.preferredHeight: 50
                 font.pixelSize: 34
                 model: ["один раз", "ежедневно", "дни недели", "раз в месяц", "раз в 3 месяца", "раз в полгода", "раз в год"]
 
@@ -349,6 +347,10 @@ Page {
                 ColumnLayout {
                     spacing: 10
                     visible: periodBox.currentText === "дни недели"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: visible ? implicitHeight : 0
+                    Layout.minimumHeight: 0
+                    Layout.maximumHeight: visible ? implicitHeight : 0
 
                     Label {
                         text: "Дни недели:"
@@ -432,8 +434,8 @@ Page {
 
             ComboBox {
                 id: testTypeBox
-                implicitWidth: 600
-                implicitHeight: 50
+                Layout.preferredWidth: 600
+                Layout.preferredHeight: 50
                 font.pixelSize: 36
                 model: ["Функциональный", "На время"]
 
