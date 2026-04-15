@@ -142,7 +142,7 @@ Rectangle {
                         dateText.text = Qt.formatDate(updated, "dd.MM.yyyy")
                         timeText.text = Qt.formatTime(updated, "hh:mm")
                     } else {
-                        //console.log("Не удалось установить системное время")
+                        panel.writeLog("Не удалось установить системное время")
                     }     
                 }
             }

@@ -112,7 +112,7 @@ void TestController::stopTest(int lineIndex)
 {
     Q_UNUSED(lineIndex);
     stopAnyActiveTest();
-    log("Тест принудительно завершён");
+    log("отправлена команда Стоп Тест");
 }
 
 // ===== internal =====

@@ -70,10 +70,10 @@ Rectangle {
             onClicked: {
                 if (panel.checkPassword(passwordBuffer)) {
                     unlocked = true
-                    //console.log("Доступ разрешён")
+                    panel.writeLog("Доступ разрешён")
                 } else {
                     unlocked = false
-                    //console.log("Введён неверный пароль")
+                    panel.writeLog("Введён неверный пароль")
                 }
 
                 passwordBuffer = ""

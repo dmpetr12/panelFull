@@ -149,6 +149,7 @@ Rectangle {
                                         hoverEnabled: true
                                         onClicked: {
                                             indexCh = index
+                                            panel.writeLog("Настройка линии "+index)
                                             showPower = modelData.mpower !== undefined ? modelData.mpower : 0
                                             stackViewList.replace("pageLineEdit.qml")
                                         }
