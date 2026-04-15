@@ -10,6 +10,7 @@
 #include <cstdint>
 
 class AppConfig;
+static constexpr double InvalidTemperatureValue = -101.0;
 
 class ModbusBus : public QObject
 {

@@ -139,6 +139,8 @@ void ModbusBus::disconnectDevice()
     clearQueues();
     resetAllDeviceStates();
 
+    emit temperatureUpdated(InvalidTemperatureValue);
+
     if (m_modbus)
         m_modbus->disconnectDevice();
 }
@@ -153,6 +155,8 @@ void ModbusBus::scheduleReconnect(const QString &reason)
         m_busOnline = false;
         emit busOffline(reason);
     }
+
+    emit temperatureUpdated(InvalidTemperatureValue);
 
     if (m_modbus && m_modbus->state() != QModbusDevice::UnconnectedState)
         m_modbus->disconnectDevice();
@@ -767,6 +771,8 @@ void ModbusBus::markRequestFailure(const Request &r)
     if (st.online && st.failCount >= m_failThreshold) {
         st.online = false;
         emit deviceOffline(st.name, r.slaveAddr);
+        if(r.meterKind == MeterKind::SHT20_Temperature)
+            emit temperatureUpdated(InvalidTemperatureValue);
     }
 }
 

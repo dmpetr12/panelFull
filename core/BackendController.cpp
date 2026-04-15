@@ -256,8 +256,9 @@ void BackendController::setupBus()
 
     QObject::connect(m_bus, &ModbusBus::temperatureUpdated,
                      this, [this](double t) {
-                         m_temperature->setValue(t);
-                         emit stateChanged();
+                        if( t> InvalidTemperatureValue) m_temperature->setValue(t);
+                        else m_temperature->reset();
+                        emit stateChanged();
                      });
 
     QObject::connect(m_bus, &ModbusBus::inletMeterUpdated,
