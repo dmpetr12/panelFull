@@ -156,8 +156,8 @@ private:
     QModbusRtuSerialClient *m_modbus = nullptr;
     QString m_portName;
     int m_baudRate = 9600;
-    int m_timeoutMs = 800;// поменял с 350 на 800
-    int m_retries = 1;// поменял с 0 на 1
+    int m_timeoutMs = 350;
+    int m_retries = 0;
 
     int m_relayModuleCount = 1;
     int m_relayBaseAddr = 1;
@@ -205,7 +205,7 @@ private:
         int failCount = 0;
     };
     QHash<int, DeviceState> m_deviceStates;
-    int m_failThreshold = 5;
+    int m_failThreshold = 20;
     AppConfig *m_config = nullptr;
 };
 
