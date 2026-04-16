@@ -291,7 +291,7 @@ void ModbusBus::setModeNormal()
     m_mode = Mode::Normal;
 
     // CHANGED: возвращена старая логика
-    clearPendingWrites();
+    //clearPendingWrites(); - не надо чистить очередь команд переключения, они обеспечивают нам переключения режимов
     m_qNorm.clear();
     m_qLow.clear();
 
@@ -304,7 +304,7 @@ void ModbusBus::setModeTest()
     m_mode = Mode::Test;
 
     // CHANGED: возвращена старая логика
-    clearPendingWrites();
+    //clearPendingWrites();- не надо чистить очередь команд переключения, они обеспечивают нам переключения режим
     m_qNorm.clear();
     m_qLow.clear();
 
