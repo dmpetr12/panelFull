@@ -384,6 +384,7 @@ void TestController::startAllLinesTest(int durationMs)
         m_allTestRunning = false;
         endMeasurements();
         allLineStatusReturn();
+        setMeasuredLine(-1);
         setActive(Active::None);
         setSource(Source::None);
         setCurrentTestKind(TestKind::None);

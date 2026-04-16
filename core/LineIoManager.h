@@ -146,6 +146,7 @@ private:
     bool mapLineToRelayBits(int lineIndex, int &moduleIndex, int &bitMeas, int &bitWork) const;
     bool mapLineToInputBit(int lineIndex, int &moduleIndex, int &inputBit) const;
     void syncLineStatesFromDesired();
+    void checkNormalRelayConsistency();
 
     static inline bool bit(quint8 v, int b)
     {
@@ -188,6 +189,12 @@ private:
 
     bool m_alarmLampOn = false;
     bool m_doorOpen = false;
+
+    quint8 m_actualRelays[MAX_MODULES];
+    bool   m_actualRelaysKnown[MAX_MODULES];
+    int m_normalMismatchCount[MAX_MODULES];
+    int m_normalRepairAttempts[MAX_MODULES];
+    QTimer *m_normalWatchdog = nullptr;
 
     enum class TwoStepKind { None, Step1, Step2, Step3 };
     TwoStepKind m_twoStepKind = TwoStepKind::None;

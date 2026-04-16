@@ -353,6 +353,7 @@ void ModbusBus::normalTick()
             enqueueNorm(r);
         }
     }
+     pollAllRelays();
 }
 
 void ModbusBus::testFireTick()

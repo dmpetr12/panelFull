@@ -2,6 +2,7 @@
 #include "modbusbus.h"
 #include "linesmodel.h"
 #include "line.h"
+#include "logger.h"
 
 namespace {
 
@@ -28,16 +29,33 @@ static inline void setWorkLineOn(quint8 &mask, int bitWork, bool lineOn)
 LineIoManager::LineIoManager(QObject *parent)
     : QObject(parent)
     , m_StepSwich(new QTimer(this))
+    , m_normalWatchdog(new QTimer(this))
 {
     for (int i = 0; i < MAX_MODULES; ++i) {
         m_lastInputs[i]     = 0x00;
         m_desiredRelays[i]  = 0x00;
         m_lastSentRelays[i] = 0xFF;
+        m_actualRelays[i] = 0x00;
+        m_actualRelaysKnown[i] = false;
+        m_normalMismatchCount[i] = 0;
+        m_normalRepairAttempts[i] = 0;
     }
+
+    m_normalWatchdog->setInterval(2000);
+    m_normalWatchdog->setSingleShot(false);
+    connect(m_normalWatchdog, &QTimer::timeout, this, [this]() {
+        checkNormalRelayConsistency();
+    });
+    m_normalWatchdog->start();
 
     m_StepSwich->setSingleShot(true);
 
     connect(m_StepSwich, &QTimer::timeout, this, [this]() {
+        if (!m_stepTestActive || m_stepTestLine < 0) {
+            m_twoStepKind = TwoStepKind::None;
+            return;
+        }
+
         if (m_twoStepKind == TwoStepKind::Step1) {
             m_twoStepKind = TwoStepKind::Step2;
             recomputeDesiredAll();
@@ -53,6 +71,7 @@ LineIoManager::LineIoManager(QObject *parent)
             return;
         }
     });
+
 }
 
 void LineIoManager::bind(ModbusBus *bus, LinesModel *linesModel, int numLines)
@@ -115,14 +134,20 @@ void LineIoManager::onInputsUpdated(int moduleIndex, quint8 bits)
 
 void LineIoManager::onRelaysUpdated(int moduleIndex, quint8 bits)
 {
-    Q_UNUSED(moduleIndex);
-    Q_UNUSED(bits);
+    if (moduleIndex < 0 || moduleIndex >= MAX_MODULES)
+        return;
+
+    m_actualRelays[moduleIndex] = bits;
+    m_actualRelaysKnown[moduleIndex] = true;
 }
 
 void LineIoManager::onBusOnline()
 {
-    for (int i = 0; i < MAX_MODULES; ++i)
+    for (int i = 0; i < MAX_MODULES; ++i){
         m_lastSentRelays[i] = 0xFF;
+        m_normalMismatchCount[i] = 0;
+        m_normalRepairAttempts[i] = 0;
+    }
 
     recomputeDesiredAll();
     applyAllModules(true);
@@ -132,8 +157,12 @@ void LineIoManager::onBusOffline(const QString &reason)
 {
     Q_UNUSED(reason);
 
-    for (int i = 0; i < MAX_MODULES; ++i)
+    for (int i = 0; i < MAX_MODULES; ++i){
         m_lastSentRelays[i] = 0xFF;
+        m_actualRelaysKnown[i] = false;
+        m_normalMismatchCount[i] = 0;
+        m_normalRepairAttempts[i] = 0;
+    }
 }
 
 void LineIoManager::updateFireFromModule0(quint8 bits0)
@@ -254,6 +283,7 @@ void LineIoManager::cancelTestsDueToEmergency()
     if (m_stepTestActive) {
         m_stepTestActive = false;
         m_stepTestLine = -1;
+        m_twoStepKind = TwoStepKind::None;
         emit stepTestActiveChanged(false);
         emit stepTestLineChanged(-1);
         emit fireTestActiveChanged(false);
@@ -366,10 +396,10 @@ bool LineIoManager::requestStepTestStart(int lineIndex)
 
 void LineIoManager::requestStepTestStop()
 {
-    if (!m_stepTestActive)
-        return;
+    const bool wasActive = m_stepTestActive;
 
     stopStepSwichTimers();
+    m_twoStepKind = TwoStepKind::None;
 
     m_stepTestActive = false;
     m_stepTestLine = -1;
@@ -377,10 +407,12 @@ void LineIoManager::requestStepTestStop()
     if (m_bus)
         m_bus->setModeNormal();
 
-    emit stepTestActiveChanged(false);
-    emit stepTestLineChanged(-1);
-    emit fireTestActiveChanged(false);
-    emit fireTestLineChanged(-1);
+    if (wasActive) {
+        emit stepTestActiveChanged(false);
+        emit stepTestLineChanged(-1);
+        emit fireTestActiveChanged(false);
+        emit fireTestLineChanged(-1);
+    }
 
     recomputeDesiredAll();
     applyAllModules(true);
@@ -390,6 +422,57 @@ void LineIoManager::forceApplyAll()
 {
     recomputeDesiredAll();
     applyAllModules(true);
+}
+
+void LineIoManager::checkNormalRelayConsistency()
+{
+    if (!m_bus || !m_bus->isConnected())
+        return;
+
+    if (currentMode() != Mode::Normal)
+        return;
+
+    constexpr int ConfirmMismatchCount = 2;
+    constexpr int MaxRepairAttempts = 2;
+
+    for (int m = 0; m < MAX_MODULES; ++m) {
+        if (!m_actualRelaysKnown[m])
+            continue;
+
+        const quint8 desired = m_desiredRelays[m];
+        const quint8 actual  = m_actualRelays[m];
+
+        if (actual == desired) {
+            m_normalMismatchCount[m] = 0;
+            m_normalRepairAttempts[m] = 0;
+            continue;
+        }
+
+        ++m_normalMismatchCount[m];
+
+        if (m_normalMismatchCount[m] < ConfirmMismatchCount)
+            continue;
+        if (m_normalRepairAttempts[m] == MaxRepairAttempts) {
+            log(QString("❌ Реле module=%1 не удалось восстановить после %2 попыток")
+                    .arg(m)
+                    .arg(MaxRepairAttempts));
+        }
+
+        if (m_normalRepairAttempts[m] >= MaxRepairAttempts)
+            continue;
+
+        ++m_normalRepairAttempts[m];
+
+        log(QString("⚠️ Несовпадение реле в NORMAL: module=%1 desired=0x%2 actual=0x%3, попытка восстановления %4/%5")
+                .arg(m)
+                .arg(QString::number(desired, 16).rightJustified(2, '0'))
+                .arg(QString::number(actual, 16).rightJustified(2, '0'))
+                .arg(m_normalRepairAttempts[m])
+                .arg(MaxRepairAttempts));
+
+        m_bus->setModuleRelaysBits(m, desired);
+        m_lastSentRelays[m] = desired;
+    }
 }
 
 LineIoManager::Mode LineIoManager::currentMode() const
