@@ -41,7 +41,7 @@ LineIoManager::LineIoManager(QObject *parent)
         m_normalRepairAttempts[i] = 0;
     }
 
-    m_normalWatchdog->setInterval(2000);
+    m_normalWatchdog->setInterval(10000);
     m_normalWatchdog->setSingleShot(false);
     connect(m_normalWatchdog, &QTimer::timeout, this, [this]() {
         checkNormalRelayConsistency();
@@ -636,11 +636,7 @@ void LineIoManager::applyModuleIfChanged(int moduleIndex, bool force)
 
     if (!force && desired == m_lastSentRelays[moduleIndex])
         return;
-    log(QString("APPLY send: module=%1 force=%2 desired=0x%3 lastSent=0x%4")
-            .arg(moduleIndex)
-            .arg(force)
-            .arg(QString::number(desired, 16).rightJustified(2, '0'))
-            .arg(QString::number(m_lastSentRelays[moduleIndex], 16).rightJustified(2, '0')));
+    //log(QString("APPLY send: module=%1 force=%2 desired=0x%3 lastSent=0x%4").arg(moduleIndex).arg(force).arg(QString::number(desired, 16).rightJustified(2, '0')).arg(QString::number(m_lastSentRelays[moduleIndex], 16).rightJustified(2, '0')));
 
     m_bus->setModuleRelaysBits(moduleIndex, desired);
     m_lastSentRelays[moduleIndex] = desired;
