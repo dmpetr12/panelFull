@@ -346,11 +346,9 @@ Page {
 
                 ColumnLayout {
                     spacing: 10
-                    visible: periodBox.currentText === "дни недели"
                     Layout.fillWidth: true
-                    Layout.preferredHeight: visible ? implicitHeight : 0
-                    Layout.minimumHeight: 0
-                    Layout.maximumHeight: visible ? implicitHeight : 0
+                    enabled: periodBox.currentText === "дни недели"
+                    opacity: periodBox.currentText === "дни недели" ? 1.0 : 0.35
 
                     Label {
                         text: "Дни недели:"

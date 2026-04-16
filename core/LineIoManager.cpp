@@ -139,6 +139,11 @@ void LineIoManager::onRelaysUpdated(int moduleIndex, quint8 bits)
 
     m_actualRelays[moduleIndex] = bits;
     m_actualRelaysKnown[moduleIndex] = true;
+
+    log(QString("RELAYS actual: module=%1 actual=0x%2 desired=0x%3")
+            .arg(moduleIndex)
+            .arg(QString::number(bits, 16).rightJustified(2, '0'))
+            .arg(QString::number(m_desiredRelays[moduleIndex], 16).rightJustified(2, '0')));
 }
 
 void LineIoManager::onBusOnline()
@@ -398,6 +403,11 @@ void LineIoManager::requestStepTestStop()
 {
     const bool wasActive = m_stepTestActive;
 
+    log(QString("STEP STOP begin: wasActive=%1 stepLine=%2 modeBefore=%3")
+            .arg(wasActive)
+            .arg(m_stepTestLine)
+            .arg(int(currentMode())));
+
     stopStepSwichTimers();
     m_twoStepKind = TwoStepKind::None;
 
@@ -415,7 +425,15 @@ void LineIoManager::requestStepTestStop()
     }
 
     recomputeDesiredAll();
+    for (int m = 0; m < MAX_MODULES; ++m) {
+        log(QString("STEP STOP desired: module=%1 desired=0x%2")
+                .arg(m)
+                .arg(QString::number(m_desiredRelays[m], 16).rightJustified(2, '0')));
+    }
+
     applyAllModules(true);
+
+    log("STEP STOP end");
 }
 
 void LineIoManager::forceApplyAll()
@@ -633,6 +651,11 @@ void LineIoManager::applyModuleIfChanged(int moduleIndex, bool force)
 
     if (!force && desired == m_lastSentRelays[moduleIndex])
         return;
+    log(QString("APPLY send: module=%1 force=%2 desired=0x%3 lastSent=0x%4")
+            .arg(moduleIndex)
+            .arg(force)
+            .arg(QString::number(desired, 16).rightJustified(2, '0'))
+            .arg(QString::number(m_lastSentRelays[moduleIndex], 16).rightJustified(2, '0')));
 
     m_bus->setModuleRelaysBits(moduleIndex, desired);
     m_lastSentRelays[moduleIndex] = desired;
