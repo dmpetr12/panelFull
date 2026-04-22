@@ -66,6 +66,10 @@ class PanelFacade : public QObject
     Q_PROPERTY(bool testIAvailable READ testIAvailable NOTIFY changed)
     Q_PROPERTY(bool testPAvailable READ testPAvailable NOTIFY changed)
 
+    Q_PROPERTY(bool relayStateKnown READ relayStateKnown NOTIFY changed)
+    Q_PROPERTY(bool relayMismatch READ relayMismatch NOTIFY changed)
+    Q_PROPERTY(int cabinetMode READ cabinetMode NOTIFY changed)
+
     Q_PROPERTY(QString logLevel READ logLevel NOTIFY changed)
 
 public:
@@ -102,6 +106,10 @@ public:
     // система
     int systemState() const;
     int lineCount() const;
+
+    bool relayStateKnown() const;
+    bool relayMismatch() const;
+    int cabinetMode() const;
 
     // тесты
     bool stepTestActive() const;

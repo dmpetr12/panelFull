@@ -34,7 +34,7 @@ ModbusRtuSlave::ModbusRtuSlave(BackendController *backend, QObject *parent)
     connect(timer, &QTimer::timeout, this, &ModbusRtuSlave::refreshInputRegisters);
     timer->start();
 
-    m_reconnect.setInterval(600000);
+    m_reconnect.setInterval(10000);
     m_reconnect.setSingleShot(false);
     connect(&m_reconnect, &QTimer::timeout, this, &ModbusRtuSlave::tryReconnect);
 }
@@ -97,26 +97,18 @@ void ModbusRtuSlave::recreateServer()
                     if (isPermanentPortError(reason)) {
                         if (!m_portUnavailableLogged) {
                             m_portUnavailableLogged = true;
-
-                            const QString msg =
-                                QStringLiteral("Modbus RTU stopped: port %1 not available (%2)")
-                                    .arg(m_portName, reason);
-
-                            //log(msg);
-                            emit errorOccurred(msg);
+                            emit errorOccurred(QStringLiteral(
+                                                   "Modbus RTU port %1 not available (%2), reconnect scheduled")
+                                                   .arg(m_portName, reason));
                         }
 
-                        if (m_reconnect.isActive())
-                            m_reconnect.stop();
+                        if (m_wantRunning && !m_reconnect.isActive())
+                            m_reconnect.start();
                     } else {
                         m_portUnavailableLogged = false;
 
-                        const QString msg =
-                            QStringLiteral("Modbus RTU server error on %1: %2")
-                                .arg(m_portName, reason);
-
-                        //log(msg);
-                        emit errorOccurred(msg);
+                        emit errorOccurred(QStringLiteral("Modbus RTU server error on %1: %2")
+                                               .arg(m_portName, reason));
 
                         scheduleReconnect(reason);
                     }
@@ -164,22 +156,20 @@ bool ModbusRtuSlave::start(const QString &portName,
         const QString err = m_server->errorString();
         const QString msg = QString("Modbus RTU slave start failed: %1").arg(err);
 
-        if(msg != m_lastError){
-           emit errorOccurred(msg);
+        if (msg != m_lastError) {
+            emit errorOccurred(msg);
             m_lastError = msg;
         }
 
+        if (m_wantRunning && !m_reconnect.isActive())
+            m_reconnect.start();
 
-        // ❗ НЕ перезапускать если порта нет
-        if (!isPermanentPortError(err)) {
-            if (!m_reconnect.isActive())
-                m_reconnect.start();
-        }
         return false;
     }
 
     refreshInputRegisters();
     log(QString("Modbus RTU slave started on %1 %2").arg(m_portName).arg(m_slaveId));
+    m_lastError = "";
     return true;
 }
 

@@ -319,7 +319,11 @@ void BackendController::setupSerialWatcher()
     m_bus->setPortName(portName);
     m_bus->connectDevice();
 }
-
+// Panel должен использовать так:
+// cabinetMode — главный статус шкафа
+// fireActive, stepTestActive, singleLineTestActive, noMeasTestActive — детальные подтверждённые флаги
+// relayStateKnown, relayMismatch — диагностика причины Alarm
+// fireInput, programFireActive, testRunning — только служебная/диагностическая информация, не источник итогового режима
 DeviceSnapshot BackendController::snapshot() const
 {
     DeviceSnapshot s;
@@ -369,18 +373,23 @@ DeviceSnapshot BackendController::snapshot() const
     }
 
     if (m_lineIoManager) {
-        s.fireActive = m_lineIoManager->fireActive();
-        s.fireInput = m_lineIoManager->fireInput();
-        s.programFireActive = m_lineIoManager->programFireActive();
+        s.fireInput = m_lineIoManager->fireInput();               // можно оставить как диагностический факт
+        s.programFireActive = m_lineIoManager->programFireActive(); // это тоже можно оставить как командный флаг
 
-        s.stepTestActive = m_lineIoManager->stepTestActive();
-        s.stepTestLine = m_lineIoManager->stepTestLine();
+        s.fireActive = m_lineIoManager->confirmedFireActive();
 
-        s.singleLineTestActive = m_lineIoManager->singleLineTestActive();
-        s.singleLineTestLine = m_lineIoManager->singleLineTestLine();
+        s.stepTestActive = m_lineIoManager->confirmedStepTestActive();
+        s.stepTestLine = m_lineIoManager->confirmedStepTestLine();
 
-        s.noMeasTestActive = m_lineIoManager->noMeasTestActive();
+        s.singleLineTestActive = m_lineIoManager->confirmedSingleLineTestActive();
+        s.singleLineTestLine = m_lineIoManager->confirmedSingleLineTestLine();
+
+        s.noMeasTestActive = m_lineIoManager->confirmedNoMeasTestActive();
+
         s.doorOpen = m_lineIoManager->doorOpen();
+
+        s.relayStateKnown = m_lineIoManager->relayStateKnown();
+        s.relayMismatch = m_lineIoManager->relayMismatch();
     }
 
     if (m_lines) {
@@ -419,6 +428,35 @@ DeviceSnapshot BackendController::snapshot() const
         s.battery.batteryLow = m_batteryController->batteryLow();
         s.battery.batteryFault = m_batteryController->batteryFault();
         s.battery.onBattery = m_batteryController->onBattery();
+    }
+
+    if (!s.relayStateKnown || s.relayMismatch)
+        s.cabinetMode = 3; // Alarm
+    else if (s.fireActive)
+        s.cabinetMode = 1; // Fire
+    else if (s.stepTestActive || s.singleLineTestActive || s.noMeasTestActive)
+        s.cabinetMode = 2; // Test
+    else
+        s.cabinetMode = 0; // Normal
+    // Прологируем изменение статуса шкафа
+    if (m_lastLoggedCabinetMode == -1) {
+        m_lastLoggedCabinetMode = s.cabinetMode;
+    } else if (m_lastLoggedCabinetMode != s.cabinetMode) {
+        if (s.cabinetMode == 3) {
+            QString reason;
+            if (!s.relayStateKnown)
+                reason = QStringLiteral("состояние реле неизвестно");
+            else if (s.relayMismatch)
+                reason = QStringLiteral("несовпадение желаемого и фактического состояния реле");
+            else
+                reason = QStringLiteral("неуточненная причина");
+
+            log(QStringLiteral("Шкаф вошел в режим АВАРИЯ: %1").arg(reason));
+        } else if (m_lastLoggedCabinetMode == 3) {
+            log(QStringLiteral("Шкаф вышел из режима АВАРИЯ"));
+        }
+
+        m_lastLoggedCabinetMode = s.cabinetMode;
     }
 
     if (m_config)

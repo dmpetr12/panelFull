@@ -79,6 +79,7 @@ void LineIoManager::bind(ModbusBus *bus, LinesModel *linesModel, int numLines)
     m_bus = bus;
     m_lines = linesModel;
     m_numLines = numLines;
+    m_relayModuleCount = m_bus ? m_bus->relayModuleCount() : 0;
 
     // CHANGED: подключаем входы
     connect(m_bus, &ModbusBus::inputsUpdated,
@@ -105,7 +106,7 @@ void LineIoManager::bind(ModbusBus *bus, LinesModel *linesModel, int numLines)
 
 void LineIoManager::onInputsUpdated(int moduleIndex, quint8 bits)
 {
-    if (moduleIndex < 0 || moduleIndex >= MAX_MODULES)
+    if (moduleIndex < 0 || moduleIndex >= m_relayModuleCount)
         return;
 
     if (m_lastInputs[moduleIndex] == bits)
@@ -134,17 +135,24 @@ void LineIoManager::onInputsUpdated(int moduleIndex, quint8 bits)
 
 void LineIoManager::onRelaysUpdated(int moduleIndex, quint8 bits)
 {
-    if (moduleIndex < 0 || moduleIndex >= MAX_MODULES)
+    if (moduleIndex < 0 || moduleIndex >= m_relayModuleCount)
         return;
 
     m_actualRelays[moduleIndex] = bits;
     m_actualRelaysKnown[moduleIndex] = true;
-    // log(QString("RELAYS actual: module=%1 actual=0x%2 desired=0x%3").arg(moduleIndex).arg(QString::number(bits, 16).rightJustified(2, '0')).arg(QString::number(m_desiredRelays[moduleIndex], 16).rightJustified(2, '0')));
+
+    syncLineStatesFromActual();
+
+    emit fireChanged(confirmedFireActive());
+    emit stepTestActiveChanged(confirmedStepTestActive());
+    emit stepTestLineChanged(confirmedStepTestLine());
+    emit singleLineTestActiveChanged(confirmedSingleLineTestActive());
+    emit singleLineTestLineChanged(confirmedSingleLineTestLine());
 }
 
 void LineIoManager::onBusOnline()
 {
-    for (int i = 0; i < MAX_MODULES; ++i){
+    for (int i = 0; i < m_relayModuleCount; ++i){
         m_lastSentRelays[i] = 0xFF;
         m_normalMismatchCount[i] = 0;
         m_normalRepairAttempts[i] = 0;
@@ -158,7 +166,7 @@ void LineIoManager::onBusOffline(const QString &reason)
 {
     Q_UNUSED(reason);
 
-    for (int i = 0; i < MAX_MODULES; ++i){
+    for (int i = 0; i < m_relayModuleCount; ++i){
         m_lastSentRelays[i] = 0xFF;
         m_actualRelaysKnown[i] = false;
         m_normalMismatchCount[i] = 0;
@@ -285,18 +293,13 @@ void LineIoManager::cancelTestsDueToEmergency()
         m_stepTestActive = false;
         m_stepTestLine = -1;
         m_twoStepKind = TwoStepKind::None;
-        emit stepTestActiveChanged(false);
-        emit stepTestLineChanged(-1);
-        emit fireTestActiveChanged(false);
-        emit fireTestLineChanged(-1);
+
         anyChanged = true;
     }
 
     if (m_singleTestActive) {
         m_singleTestActive = false;
         m_singleTestLine = -1;
-        emit singleLineTestActiveChanged(false);
-        emit singleLineTestLineChanged(-1);
         anyChanged = true;
     }
 
@@ -320,10 +323,6 @@ bool LineIoManager::requestSingleLineTestStart(int lineIndex)
         m_stepTestActive = false;
         m_stepTestLine = -1;
         stopStepSwichTimers();
-        emit stepTestActiveChanged(false);
-        emit stepTestLineChanged(-1);
-        emit fireTestActiveChanged(false);
-        emit fireTestLineChanged(-1);
     }
 
     m_noMeasTestActive = false;
@@ -332,9 +331,6 @@ bool LineIoManager::requestSingleLineTestStart(int lineIndex)
 
     if (m_bus)
         m_bus->setModeTest();
-
-    emit singleLineTestActiveChanged(true);
-    emit singleLineTestLineChanged(lineIndex);
 
     recomputeDesiredAll();
     applyAllModules(true);
@@ -349,8 +345,6 @@ void LineIoManager::requestSingleLineTestStop()
     m_singleTestActive = false;
     m_singleTestLine = -1;
 
-    emit singleLineTestActiveChanged(false);
-    emit singleLineTestLineChanged(-1);
 
     if (m_bus)
         m_bus->setModeNormal();
@@ -370,8 +364,6 @@ bool LineIoManager::requestStepTestStart(int lineIndex)
     if (m_singleTestActive) {
         m_singleTestActive = false;
         m_singleTestLine = -1;
-        emit singleLineTestActiveChanged(false);
-        emit singleLineTestLineChanged(-1);
     }
 
     m_noMeasTestActive = false;
@@ -384,11 +376,6 @@ bool LineIoManager::requestStepTestStart(int lineIndex)
     if (m_bus)
         m_bus->setModeTest();
 
-    emit stepTestActiveChanged(true);
-    emit stepTestLineChanged(lineIndex);
-    emit fireTestActiveChanged(true);
-    emit fireTestLineChanged(lineIndex);
-
     recomputeDesiredAll();
     applyAllModules(true);
     m_StepSwich->start(m_twoStepDelayMs);
@@ -397,8 +384,6 @@ bool LineIoManager::requestStepTestStart(int lineIndex)
 
 void LineIoManager::requestStepTestStop()
 {
-    const bool wasActive = m_stepTestActive;
-   // log(QString("STEP STOP begin: wasActive=%1 stepLine=%2 modeBefore=%3").arg(wasActive).arg(m_stepTestLine).arg(int(currentMode())));
     stopStepSwichTimers();
     m_twoStepKind = TwoStepKind::None;
 
@@ -408,15 +393,8 @@ void LineIoManager::requestStepTestStop()
     if (m_bus)
         m_bus->setModeNormal();
 
-    if (wasActive) {
-        emit stepTestActiveChanged(false);
-        emit stepTestLineChanged(-1);
-        emit fireTestActiveChanged(false);
-        emit fireTestLineChanged(-1);
-    }
-
     recomputeDesiredAll();
-    // for (int m = 0; m < MAX_MODULES; ++m) {log(QString("STEP STOP desired: module=%1 desired=0x%2").arg(m).arg(QString::number(m_desiredRelays[m], 16).rightJustified(2, '0')));}
+    // for (int m = 0; m < m_relayModuleCount; ++m) {log(QString("STEP STOP desired: module=%1 desired=0x%2").arg(m).arg(QString::number(m_desiredRelays[m], 16).rightJustified(2, '0')));}
     applyAllModules(true);
     //log("STEP STOP end");
 }
@@ -438,7 +416,7 @@ void LineIoManager::checkNormalRelayConsistency()
     constexpr int ConfirmMismatchCount = 2;
     constexpr int MaxRepairAttempts = 2;
 
-    for (int m = 0; m < MAX_MODULES; ++m) {
+    for (int m = 0; m < m_relayModuleCount; ++m) {
         if (!m_actualRelaysKnown[m])
             continue;
 
@@ -497,7 +475,7 @@ LineIoManager::Mode LineIoManager::currentMode() const
 
 void LineIoManager::recomputeDesiredAll()
 {
-    for (int m = 0; m < MAX_MODULES; ++m)
+    for (int m = 0; m < m_relayModuleCount; ++m)
         m_desiredRelays[m] = 0x00;
 
     switch (currentMode()) {
@@ -620,17 +598,15 @@ bool LineIoManager::wantLineOn(int lineIndex) const
 
 void LineIoManager::applyAllModules(bool force)
 {
-    for (int m = 0; m < MAX_MODULES; ++m)
+    for (int m = 0; m < m_relayModuleCount; ++m)
         applyModuleIfChanged(m, force);
-
-    syncLineStatesFromDesired();
 }
 
 void LineIoManager::applyModuleIfChanged(int moduleIndex, bool force)
 {
     if (!m_bus) return;
     if (!m_bus->isConnected()) return;
-    if (moduleIndex < 0 || moduleIndex >= MAX_MODULES) return;
+    if (moduleIndex < 0 || moduleIndex >= m_relayModuleCount) return;
 
     const quint8 desired = m_desiredRelays[moduleIndex];
 
@@ -658,7 +634,7 @@ bool LineIoManager::mapLineToRelayBits(int lineIndex, int &moduleIndex, int &bit
     const int mod = 1 + (idx / 4);
     const int pos = (idx % 4);
 
-    if (mod < 1 || mod >= MAX_MODULES)
+    if (mod < 1 || mod >= m_relayModuleCount)
         return false;
 
     moduleIndex = mod;
@@ -680,7 +656,7 @@ bool LineIoManager::mapLineToInputBit(int lineIndex, int &moduleIndex, int &inpu
     const int mod = 1 + (idx / 4);
     const int pos = (idx % 4);
 
-    if (mod < 1 || mod >= MAX_MODULES)
+    if (mod < 1 || mod >= m_relayModuleCount)
         return false;
 
     moduleIndex = mod;
@@ -688,7 +664,7 @@ bool LineIoManager::mapLineToInputBit(int lineIndex, int &moduleIndex, int &inpu
     return true;
 }
 
-void LineIoManager::syncLineStatesFromDesired()
+void LineIoManager::syncLineStatesFromActual()
 {
     if (!m_lines)
         return;
@@ -708,14 +684,26 @@ void LineIoManager::syncLineStatesFromDesired()
         ln->setLineState(on ? Line::On : Line::Off);
     };
 
-    auto lineOnFromDesiredWorkBit = [&](int moduleIndex, int measBit, int workBit) -> bool
+    auto lineOnFromActualRelayBit = [&](int moduleIndex, int measBit, int workBit, bool &ok) -> bool
     {
-        const quint8 desired = m_desiredRelays[moduleIndex];
-        const bool measOn = ((desired >> measBit) & 0x01) != 0;
-        if (measOn)
-            return true;
+        ok = false;
 
-        const bool coilOn = ((desired >> workBit) & 0x01) != 0;
+        if (moduleIndex < 0 || moduleIndex >= m_relayModuleCount)
+            return false;
+
+        if (!m_actualRelaysKnown[moduleIndex])
+            return false;
+
+        const quint8 actual = m_actualRelays[moduleIndex];
+
+        const bool measOn = ((actual >> measBit) & 0x01) != 0;
+        if (measOn) {
+            ok = true;
+            return true;
+        }
+
+        const bool coilOn = ((actual >> workBit) & 0x01) != 0;
+        ok = true;
         return !coilOn;
     };
 
@@ -724,7 +712,12 @@ void LineIoManager::syncLineStatesFromDesired()
         if (!mapLineToRelayBits(i, mod, bMeas, bWork))
             continue;
 
-        setLine(i, lineOnFromDesiredWorkBit(mod, bMeas, bWork));
+        bool ok = false;
+        const bool lineOn = lineOnFromActualRelayBit(mod, bMeas, bWork, ok);
+        if (!ok)
+            continue;
+
+        setLine(i, lineOn);
     }
 }
 
@@ -736,4 +729,127 @@ void LineIoManager::setAlarmLamp(bool on)
     m_alarmLampOn = on;
     recomputeDesiredAll();
     applyAllModules(true);
+}
+
+bool LineIoManager::moduleMatchesDesired(int moduleIndex) const
+{
+    if (moduleIndex < 0 || moduleIndex >= m_relayModuleCount)
+        return false;
+
+    if (!m_actualRelaysKnown[moduleIndex])
+        return false;
+
+    return m_actualRelays[moduleIndex] == m_desiredRelays[moduleIndex];
+}
+
+bool LineIoManager::allRelevantModulesKnown() const
+{
+    for (int m = 0; m < m_relayModuleCount; ++m) {
+        if (m_desiredRelays[m] != 0x00 || m_actualRelaysKnown[m]) {
+            if (!m_actualRelaysKnown[m])
+                return false;
+        }
+    }
+    return true;
+}
+
+bool LineIoManager::anyRelevantMismatch() const
+{
+    for (int m = 0; m < m_relayModuleCount; ++m) {
+
+        if (!m_actualRelaysKnown[m])
+            return true;
+
+        if (m_actualRelays[m] != m_desiredRelays[m])
+            return true;
+    }
+    return false;
+}
+
+bool LineIoManager::relayStateKnown() const
+{
+    return allRelevantModulesKnown();
+}
+
+bool LineIoManager::relayMismatch() const
+{
+    return anyRelevantMismatch();
+}
+
+bool LineIoManager::isConfirmedFireByRelays() const
+{
+    if (!relayStateKnown())
+        return false;
+
+    if (relayMismatch())
+        return false;
+
+    // Подтверждаем пожар только если текущая логическая цель = Fire
+    return currentMode() == Mode::Fire;
+}
+
+bool LineIoManager::confirmedFireActive() const
+{
+    return isConfirmedFireByRelays();
+}
+
+bool LineIoManager::isConfirmedTestByRelays() const
+{
+    if (!relayStateKnown())
+        return false;
+
+    if (relayMismatch())
+        return false;
+
+    const Mode mode = currentMode();
+    return mode == Mode::NoMeasTest ||
+           mode == Mode::SingleLineTest ||
+           mode == Mode::StepTest;
+}
+
+bool LineIoManager::confirmedTestActive() const
+{
+    return isConfirmedTestByRelays();
+}
+
+bool LineIoManager::confirmedNoMeasTestActive() const
+{
+    return confirmedTestActive() && currentMode() == Mode::NoMeasTest;
+}
+
+bool LineIoManager::confirmedSingleLineTestActive() const
+{
+    return confirmedTestActive() && currentMode() == Mode::SingleLineTest;
+}
+
+int LineIoManager::confirmedSingleLineTestLine() const
+{
+    return confirmedSingleLineTestActive() ? m_singleTestLine : -1;
+}
+
+bool LineIoManager::confirmedStepTestActive() const
+{
+    return confirmedTestActive() && currentMode() == Mode::StepTest;
+}
+
+int LineIoManager::confirmedStepTestLine() const
+{
+    return confirmedStepTestActive() ? m_stepTestLine : -1;
+}
+
+LineIoManager::ConfirmedMode LineIoManager::confirmedMode() const
+{
+    if (!relayStateKnown())
+        return ConfirmedMode::Alarm;
+
+    if (relayMismatch())
+        return ConfirmedMode::Alarm;
+
+    if (isConfirmedFireByRelays())
+        return ConfirmedMode::Fire;
+
+    if (isConfirmedTestByRelays())
+        return ConfirmedMode::Test;
+
+    return ConfirmedMode::Normal;
 }

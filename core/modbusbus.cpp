@@ -82,7 +82,10 @@ void ModbusBus::recreateClient()
 
 void ModbusBus::setPortName(const QString &portName) { m_portName = portName; }
 void ModbusBus::setBaudRate(int baud) { m_baudRate = baud; }
-void ModbusBus::setRelayModuleCount(int count) { m_relayModuleCount = count; }
+void ModbusBus::setRelayModuleCount(int count) {
+    m_relayModuleCount = count;
+    m_tickNormal.setInterval(750 + 250 * m_relayModuleCount);
+}
 void ModbusBus::setRelayBaseAddress(int addr) { m_relayBaseAddr = addr; }
 void ModbusBus::setTimeoutMs(int ms) { m_timeoutMs = ms; }
 void ModbusBus::setRetries(int n) { m_retries = n; }
@@ -329,15 +332,7 @@ void ModbusBus::normalTick()
         enqueueNorm(r);
     }
 
-    {
-        Request r;
-        r.type = ReqType::ReadHolding;
-        r.slaveAddr = m_addrInlet;
-        r.start = 0x000B;
-        r.count = 7;
-        r.meterKind = MeterKind::ADL200_Inlet;
-        enqueueNorm(r);
-    }
+    pollAllRelays();
 
     {
         ++m_sht20PollDivider;
@@ -352,15 +347,23 @@ void ModbusBus::normalTick()
             r.meterKind = MeterKind::SHT20_Temperature;
             enqueueNorm(r);
         }
+        else    {
+            Request r;
+            r.type = ReqType::ReadHolding;
+            r.slaveAddr = m_addrInlet;
+            r.start = 0x000B;
+            r.count = 7;
+            r.meterKind = MeterKind::ADL200_Inlet;
+            enqueueNorm(r);
+        }
     }
-     pollAllRelays();
 }
 
 void ModbusBus::testFireTick()
 {
     if (!isConnected() || m_relayModuleCount <= 0)
         return;
-    if (m_qHigh.size() > 4 || m_qNorm.size() > 8)
+    if (m_qHigh.size() > 4 || m_qNorm.size() > 8 || m_qLow.size() > 8)
         return;
 
     Request r;
@@ -370,11 +373,15 @@ void ModbusBus::testFireTick()
     r.start = 0;
     r.count = 8;
     enqueueNorm(r);
+
+    pollAllRelays();
 }
 
 void ModbusBus::testFastTick()
 {
     if (!isConnected())
+        return;
+    if (m_qHigh.size() > 4 || m_qNorm.size() > 8 || m_qLow.size() > 8)
         return;
 
     Request r;
@@ -383,8 +390,7 @@ void ModbusBus::testFastTick()
     r.start = 0;
     r.count = 4;
     r.meterKind = MeterKind::DJSF_Test;
-
-    enqueueLow(r);
+    enqueueNorm(r);
 }
 
 // =======================
@@ -420,7 +426,7 @@ void ModbusBus::pollAllRelays()
     r.start = 0;
     r.count = 8;
 
-    enqueueLow(r);
+    enqueueNorm(r);
 }
 
 // =======================

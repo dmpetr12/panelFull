@@ -56,7 +56,7 @@ struct DeviceSnapshot
     bool busConnected = false;
 
     // пожар
-    bool fireActive = false;         // аппаратный ИЛИ программный
+    bool fireActive = false;         // подтверждённый пожарный режим шкафа
     bool fireInput = false;          // только аппаратный вход
     bool programFireActive = false;  // только программный пожар
 
@@ -72,6 +72,11 @@ struct DeviceSnapshot
     bool testRunning = false;
 
     int systemState = 0;
+
+    bool relayStateKnown = false;
+    bool relayMismatch = false;
+
+    int cabinetMode = 0; // Normal / Fire / Test / Alarm
 
     std::vector<LineSnapshot> lines;
     BatterySnapshot battery;

@@ -10,6 +10,7 @@
 #include "../core/ValueProvider.h"
 #include "../core/linesmodel.h"
 #include "../core/line.h"
+#include "../core/DeviceSnapshot.h"
 
 namespace ModbusMap
 {
@@ -35,13 +36,6 @@ static quint32 safeDateTimeToU32(const QDateTime &dt)
         return 0;
 
     return static_cast<quint32>(secs);
-}
-
-static double readProvider(ValueProvider *p)
-{
-    if (!p || !p->valid())
-        return 0.0;
-    return p->value();
 }
 
 int lineBase(int lineIndex)
@@ -89,7 +83,7 @@ quint16 encodeBatteryState(BackendController *backend)
     if (bat->batteryFault())
         return BatteryFault;
 
-    if (bat->batteryLow()) // || (!bat->charging() && bat->chargePercent() <= 0.1))
+    if (bat->batteryLow())
         return BatteryNoCharge;
 
     return BatteryNormal;
@@ -100,20 +94,30 @@ quint16 encodeEmergencyState(BackendController *backend)
     if (!backend || !backend->lineIoManager())
         return EmergencyNone;
 
-    const bool fire = backend->lineIoManager()->fireActive();
+    const bool fire = backend->lineIoManager()->fireInput();
 
+    // STOP сейчас отдельно не поддерживается подтверждённой логикой.
+    // Регистр оставляем совместимым: показываем только аппаратный FIRE.
     return fire ? EmergencyFire : EmergencyNone;
 }
 
 quint16 encodeCabinetState(BackendController *backend)
 {
     if (!backend)
-        return CabinetOk;
+        return CabinetAlarm;
 
-    if (backend->lineIoManager() &&
-        backend->lineIoManager()->fireActive()) {
-        return CabinetEmergency;
-    }
+    const DeviceSnapshot s = backend->snapshot();
+
+    // Батарейные состояния можно держать выше обычной нормы,
+    // но ниже подтверждённого FIRE/TEST не ставим.
+    if (!s.relayStateKnown || s.relayMismatch)
+        return CabinetAlarm;
+
+    if (s.fireActive)
+        return CabinetFire;
+
+    if (s.stepTestActive || s.singleLineTestActive || s.noMeasTestActive)
+        return CabinetTest;
 
     const quint16 batState = encodeBatteryState(backend);
     if (batState == BatteryFault)
@@ -121,24 +125,7 @@ quint16 encodeCabinetState(BackendController *backend)
     if (batState == BatteryNoCharge)
         return CabinetBatteryNoCharge;
 
-    TestController *tc = backend->testController();
-    if (tc && tc->testActive()) {
-        switch (tc->currentTestKind()) {
-        case TestController::TestKind::Functional:
-            return CabinetFunctionalTest;
-        case TestController::TestKind::Duration:
-            return CabinetDurationTest;
-        case TestController::TestKind::None:
-        default:
-            break;
-        }
-    }
-
-    LinesModel *lm = backend->lines();
-    if (lm && lm->systemState() == 1)
-        return CabinetLineAlarm;
-
-    return CabinetOk;
+    return CabinetNormal;
 }
 
 quint16 encodeLineType(Line *line)
@@ -202,7 +189,7 @@ quint16 readInputRegister(BackendController *backend, int address)
         return 0;
 
     if (address == InRegCabinetEnabled)
-        return  1 ;
+        return 1;
 
     if (address == InRegCabinetState)
         return encodeCabinetState(backend);
@@ -217,7 +204,7 @@ quint16 readInputRegister(BackendController *backend, int address)
         return encodeBatteryState(backend);
 
     if (address == InRegDoorState)
-    return backend->doorOpen() ? DoorOpen : DoorClosed;
+        return backend->doorOpen() ? DoorOpen : DoorClosed;
 
     if (address == InRegInputVoltage)
         return readScaled10(backend->inletU());
@@ -300,11 +287,11 @@ bool writeCoil(BackendController *backend, int address, bool value)
     case CoilFireOff:
         return backend->setForcedFire(false);
 
-    // case CoilStopOn:
-    //     return backend->setForcedStop(true);
-
-    // case CoilStopOff:
-    //     return backend->setForcedStop(false);
+        // STOP пока не используется
+        // case CoilStopOn:
+        //     return backend->setForcedStop(true);
+        // case CoilStopOff:
+        //     return backend->setForcedStop(false);
 
     case CoilStopTest:
         return backend->stopCurrentTest();

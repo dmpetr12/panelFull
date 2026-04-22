@@ -266,6 +266,16 @@ Rectangle {
                 }
             }
         }
+        Row {
+            Text {
+                text: panel.cabinetMode === 3 ? "Шкаф в аварии" :
+                      panel.cabinetMode === 2 ? "Тест подтверждён" :
+                      panel.testRunning ? "Тест запускается" : ""
+                color: panel.cabinetMode === 3 ? "#FF4C4C" :
+                       panel.cabinetMode === 2 ? "#5EC85E" : "#FFC700"
+                font.pixelSize: 28
+            }
+        }
     }
 
     Rectangle {

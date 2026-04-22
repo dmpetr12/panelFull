@@ -93,6 +93,12 @@ inline QJsonObject deviceSnapshotToJson(const DeviceSnapshot &s)
 
     obj["systemState"] = s.systemState;
 
+    obj["relayStateKnown"] = s.relayStateKnown;
+
+    obj["relayMismatch"] = s.relayMismatch;
+
+    obj["cabinetMode"] = s.cabinetMode;
+
     obj["battery"] = batterySnapshotToJson(s.battery);
 
     QJsonArray lines;

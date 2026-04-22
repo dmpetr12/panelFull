@@ -77,6 +77,23 @@ public:
     bool noMeasTestActive() const { return m_noMeasTestActive; }
     bool doorOpen() const { return m_doorOpen; }
 
+    bool relayStateKnown() const;
+    bool relayMismatch() const;
+
+    bool confirmedFireActive() const;
+    bool confirmedTestActive() const;
+
+    bool confirmedStepTestActive() const;
+    int  confirmedStepTestLine() const;
+
+    bool confirmedSingleLineTestActive() const;
+    int  confirmedSingleLineTestLine() const;
+
+    bool confirmedNoMeasTestActive() const;
+
+    bool confirmedLineOn(int lineIndex) const;
+    bool confirmedLineStateKnown(int lineIndex) const;
+
 signals:
     void fireChanged(bool active);
     void programFireChanged(bool active);
@@ -86,10 +103,6 @@ signals:
 
     void singleLineTestActiveChanged(bool active);
     void singleLineTestLineChanged(int lineIndex);
-
-    // совместимость со старым UI
-    void fireTestActiveChanged(bool active);
-    void fireTestLineChanged(int lineIndex);
 
     void emergencyStop();
 
@@ -104,6 +117,13 @@ private:
         NoMeasTest,
         SingleLineTest,
         StepTest
+    };
+    enum class ConfirmedMode {
+        Unknown,
+        Normal,
+        Fire,
+        Test,
+        Alarm
     };
 
     static constexpr int MAX_MODULES = 7;
@@ -138,6 +158,13 @@ private:
     void fillStepTestMode(int lineIndex);
     void fillNormalMode();
 
+    ConfirmedMode confirmedMode() const;
+    bool moduleMatchesDesired(int moduleIndex) const;
+    bool allRelevantModulesKnown() const;
+    bool anyRelevantMismatch() const;
+    bool isConfirmedFireByRelays() const;
+    bool isConfirmedTestByRelays() const;
+
     bool wantLineOn(int lineIndex) const;
 
     void applyAllModules(bool force);
@@ -145,7 +172,7 @@ private:
 
     bool mapLineToRelayBits(int lineIndex, int &moduleIndex, int &bitMeas, int &bitWork) const;
     bool mapLineToInputBit(int lineIndex, int &moduleIndex, int &inputBit) const;
-    void syncLineStatesFromDesired();
+    void syncLineStatesFromActual();
     void checkNormalRelayConsistency();
 
     static inline bool bit(quint8 v, int b)
@@ -195,6 +222,8 @@ private:
     int m_normalMismatchCount[MAX_MODULES];
     int m_normalRepairAttempts[MAX_MODULES];
     QTimer *m_normalWatchdog = nullptr;
+
+    int m_relayModuleCount = 0;
 
     enum class TwoStepKind { None, Step1, Step2, Step3 };
     TwoStepKind m_twoStepKind = TwoStepKind::None;

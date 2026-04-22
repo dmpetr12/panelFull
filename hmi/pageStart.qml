@@ -13,19 +13,22 @@ Rectangle {
         btnStopTestVsb = false
         btnResetForcedFireVsb = false
 
-        if (panel.fireActive) {
+        if (panel.cabinetMode === 3) {   // Alarm
+            appMode.state = Mode.Emergency
+            return
+        }
+
+        if (panel.cabinetMode === 1) {   // Fire
             appMode.state = Mode.Fire
-            if (panel.programFireActive && unlocked)
+
+            // Кнопка доступна только для программного пожара
+            if (panel.programFireActive && !panel.fireInput && unlocked)
                 btnResetForcedFireVsb = true
+
             return
         }
 
-        if (panel.dispatcherActive) {
-            appMode.state = Mode.Force
-            return
-        }
-
-        if (panel.testRunning) {
+        if (panel.cabinetMode === 2) {   // Test
             appMode.state = Mode.Test
             if (unlocked)
                 btnStopTestVsb = true

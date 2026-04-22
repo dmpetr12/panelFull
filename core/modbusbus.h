@@ -38,6 +38,8 @@ public:
     void setSht20TempInputReg(int reg);          // default 0x0300
     void setSht20TempScale(double scale);        // default 0.1
 
+    int relayModuleCount() const { return m_relayModuleCount; }
+
     Q_INVOKABLE void connectDevice();
     Q_INVOKABLE void disconnectDevice();
     bool isConnected() const;

@@ -149,4 +149,5 @@ private:
 
     QVariantMap m_currentUiEvent;
     quint64 m_currentUiEventId = 0;
+    mutable int m_lastLoggedCabinetMode = -1;
 };

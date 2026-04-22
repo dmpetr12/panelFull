@@ -125,6 +125,20 @@ bool PanelFacade::noMeasTestActive() const
 {
     return state().value("noMeasTestActive").toBool(false);
 }
+bool PanelFacade::relayStateKnown() const
+{
+    return m_state.value("relayStateKnown").toBool();
+}
+
+bool PanelFacade::relayMismatch() const
+{
+    return m_state.value("relayMismatch").toBool();
+}
+
+int PanelFacade::cabinetMode() const
+{
+    return m_state.value("cabinetMode").toInt();
+}
 
 // ===== линии =====
 
@@ -362,15 +376,19 @@ bool PanelFacade::stopLineTest(int index)
 
 bool PanelFacade::setProgramFire(bool on)
 {
-    return sendCommand({
+    const bool ok = sendCommand({
         {"cmd", "setProgramFire"},
         {"on", on}
     });
+    pollState();
+    return ok;
 }
 
 bool PanelFacade::resetAlarm()
 {
-    return sendCommand({{"cmd", "resetAlarm"}});
+    const bool ok = sendCommand({{"cmd", "resetAlarm"}});
+    pollState();
+    return ok;
 }
 
 bool PanelFacade::checkPassword(const QString &password)
