@@ -30,7 +30,7 @@ public:
     bool startFunctionalTest();
     bool startDurationTest();
     bool stopCurrentTest();
-    int calcAllLinesTestDurationSec() const;
+    int  calcAllLinesTestDurationSec() const;
     bool setForcedFire(bool on);
     bool setForcedStop(bool on);
     bool resetAlarm();
@@ -55,6 +55,9 @@ public:
     bool updateTestProperty(int index, const QString &key, const QVariant &value);
     bool updateWeekDays(int index, const QStringList &days);
     bool writeLog(const QString &msg);
+
+    QVariantMap webState() const;
+    QVariantList allLines() const;
 
 
     AppConfig* config() const;

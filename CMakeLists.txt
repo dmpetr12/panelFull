@@ -16,6 +16,7 @@ find_package(Qt6 REQUIRED COMPONENTS
     Quick
     QuickControls2
     Network
+    HttpServer
     SerialPort
     SerialBus
 )
@@ -25,3 +26,4 @@ qt_standard_project_setup()
 add_subdirectory(core)
 add_subdirectory(hmi)
 add_subdirectory(service)
+add_subdirectory(web)

@@ -1064,6 +1064,9 @@ bool BackendController::updateLine(int index, const QVariantMap &lineData)
     if (lineData.contains("mpower"))
         ln->setmPower(lineData.value("mpower").toDouble());
 
+    if (lineData.contains("power"))
+        ln->setPower(lineData.value("power").toDouble());
+
     if (lineData.contains("tolerance"))
         ln->setTolerance(lineData.value("tolerance").toDouble());
 
@@ -1322,47 +1325,105 @@ void BackendController::setMaintenanceUiEvent(int overdueLines,
         ev.value("active").toBool()
         );
 }
-/* setCurrentUiEvent("fire",
-                  "ПОЖАР",
-                  "Активен пожарный режим",
-                  true);
-
-или:
-
-      setCurrentUiEvent("duration_test",
-                        "ТЕСТ НА ВРЕМЯ",
-                        "Выполняется тест на время",
-                        true);
-
-или:
-
-      setCurrentUiEvent("functional_test",
-                        "ФУНКЦИОНАЛЬНЫЙ ТЕСТ",
-                        "Выполняется функциональный тест",
-                        true);
-
-или:
-
-      setCurrentUiEvent("line_alarm",
-                        "АВАРИЯ ЛИНИЙ",
-                        "Обнаружена авария линии",
-                        true);
-
-или:
-
-      setCurrentUiEvent("charger_battery_fault",
-                        "АВАРИЯ ЗАРЯДНОГО/БАТАРЕИ",
-                        "Обнаружена неисправность зарядного устройства или батареи",
-                        true);
-
-или:
-
-      setCurrentUiEvent("cabinet_open",
-                        "ВСКРЫТИЕ ШКАФА",
-                        "Открыта дверца шкафа",
-                        true);
-
+/* setCurrentUiEvent("fire", "ПОЖАР","Активен пожарный режим",true);или:
+setCurrentUiEvent("duration_test","ТЕСТ НА ВРЕМЯ","Выполняется тест на время",true);или:
+setCurrentUiEvent("functional_test","ФУНКЦИОНАЛЬНЫЙ ТЕСТ","Выполняется функциональный тест",true);или:
+setCurrentUiEvent("line_alarm","АВАРИЯ ЛИНИЙ","Обнаружена авария линии",true);или:
+setCurrentUiEvent("charger_battery_fault","АВАРИЯ ЗАРЯДНОГО/БАТАРЕИ","Обнаружена неисправность зарядного устройства или батареи",true);или:
+setCurrentUiEvent("cabinet_open","ВСКРЫТИЕ ШКАФА","Открыта дверца шкафа",true);
 Если событий нет:
-
-                   setCurrentUiEvent("none", "", "", false);
+setCurrentUiEvent("none", "", "", false);
 */
+
+// вэбморда
+QVariantList BackendController::allLines() const
+{
+    QVariantList result;
+
+    if (!m_lines)
+        return result;
+
+    for (int i = 0; i < m_lines->rowCount(); ++i) {
+        result.push_back(lineAt(i));
+    }
+
+    return result;
+}
+
+QVariantMap BackendController::webState() const
+{
+    QVariantMap out;
+
+    const DeviceSnapshot s = snapshot();
+
+    out["cabinetMode"] = s.cabinetMode;
+    out["systemState"] = s.systemState;
+    out["testRunning"] = s.testRunning;
+    out["busConnected"] = s.busConnected;
+    out["doorOpen"] = s.doorOpen;
+
+    out["fireInput"] = s.fireInput;
+    out["programFireActive"] = s.programFireActive;
+    out["fireActive"] = s.fireActive;
+
+    out["stepTestActive"] = s.stepTestActive;
+    out["stepTestLine"] = s.stepTestLine;
+    out["singleLineTestActive"] = s.singleLineTestActive;
+    out["singleLineTestLine"] = s.singleLineTestLine;
+    out["noMeasTestActive"] = s.noMeasTestActive;
+
+    out["relayStateKnown"] = s.relayStateKnown;
+    out["relayMismatch"] = s.relayMismatch;
+
+    out["inletU"] = s.inletU;
+    out["inletUAvailable"] = s.inletUAvailable;
+    out["inletI"] = s.inletI;
+    out["inletIAvailable"] = s.inletIAvailable;
+    out["inletP"] = s.inletP;
+    out["inletPAvailable"] = s.inletPAvailable;
+    out["inletF"] = s.inletF;
+    out["inletFAvailable"] = s.inletFAvailable;
+
+    out["testU"] = s.testU;
+    out["testUAvailable"] = s.testUAvailable;
+    out["testI"] = s.testI;
+    out["testIAvailable"] = s.testIAvailable;
+    out["testP"] = s.testP;
+    out["testPAvailable"] = s.testPAvailable;
+
+    out["temperature"] = s.temperature;
+    out["temperatureAvailable"] = s.temperatureAvailable;
+
+    QVariantMap battery;
+    battery["voltage"] = s.battery.voltage;
+    battery["current"] = s.battery.current;
+    battery["chargePercent"] = s.battery.chargePercent;
+    battery["charging"] = s.battery.charging;
+    battery["batteryLow"] = s.battery.batteryLow;
+    battery["batteryFault"] = s.battery.batteryFault;
+    battery["onBattery"] = s.battery.onBattery;
+    out["battery"] = battery;
+
+    QVariantList linesList;
+    for (const auto &ls : s.lines) {
+        QVariantMap line;
+        line["description"] = ls.description;
+        line["mpower"] = ls.mpower;
+        line["power"] = ls.power;
+        line["current"] = ls.current;
+        line["voltage"] = ls.voltage;
+        line["tolerance"] = ls.tolerance;
+        line["mode"] = ls.mode;
+        line["status"] = ls.status;
+        line["lineState"] = ls.lineState;
+        line["lastMeasuredTest"] = ls.lastMeasuredTest;
+        linesList.push_back(line);
+    }
+    out["lines"] = linesList;
+
+    out["uiEvent"] = currentUiEvent();
+    out["serverTime"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+    out["logLevel"] = s.logLevel;
+
+    return out;
+}

@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel Full Web HMI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./assets/styles.css">
+</head>
+<body>
+  <div class="login-shell" id="loginShell">
+    <form class="login-card" id="loginForm">
+      <div class="login-brand">
+        <img src="./assets/logo.svg" alt="" class="login-brand-image">
+        <div>
+          <p class="kicker">Доступ</p>
+          <h2>Вход в веб-панель</h2>
+        </div>
+      </div>
+
+      <p class="login-text">Введите пароль шкафа для доступа к управлению и настройкам.</p>
+
+      <label class="login-field">
+        <span>Пароль</span>
+        <input id="loginPasswordInput" type="password" placeholder="Введите пароль" autocomplete="current-password">
+      </label>
+
+      <p class="login-error" id="loginErrorText"></p>
+
+      <button class="action-btn neutral login-submit" id="loginSubmitBtn" type="submit">Войти</button>
+    </form>
+  </div>
+
+  <div class="app is-locked" id="appRoot">
+    <div class="chrome-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <img src="./assets/logo.svg" alt="" class="brand-mark-image">
+          </div>
+          <div>
+            <h1>Панель управления шкафом</h1>
+          </div>
+        </div>
+      </header>
+
+      <nav class="main-nav">
+        <div class="main-nav-track">
+          <button class="nav-btn active" data-view="dashboard">Главная</button>
+          <button class="nav-btn" data-view="settings">Настройка</button>
+          <button class="nav-btn" data-view="test">Тест</button>
+          <button class="nav-btn" data-view="schedule">Расписание</button>
+          <button class="nav-btn" data-view="logs">Журнал</button>
+          <button class="nav-btn" data-view="battery">Батарея</button>
+          <button class="action-btn neutral nav-action-btn" id="systemActionBtn">Пожар</button>
+        </div>
+        <div class="main-nav-status">
+          <div class="meta-box compact-box">
+            <strong id="temperatureValue">23 °C</strong>
+          </div>
+          <div class="meta-box compact-box">
+            <strong id="dateValue">24.04.2026</strong>
+          </div>
+          <div class="meta-box compact-box">
+            <strong id="timeValue">12:00</strong>
+          </div>
+        </div>
+      </nav>
+    </div>
+
+    <main class="layout">
+      <section class="content">
+        <section class="view active" id="dashboardView">
+          <div class="dashboard-grid">
+            <section class="panel status-panel">
+              <div class="panel-title">
+                <p class="kicker">Система</p>
+                <h2>Состояние шкафа</h2>
+              </div>
+
+              <div class="status-stack">
+                <article class="status-row">
+                  <div class="status-label">
+                    <span class="status-dot work" id="modeDot"></span>
+                    <span>Режим</span>
+                  </div>
+                  <strong id="modeText">Работа</strong>
+                </article>
+
+                <article class="status-row">
+                  <div class="status-label">
+                    <span class="status-dot ok" id="systemDot"></span>
+                    <span>Система</span>
+                  </div>
+                  <strong id="systemText">OK</strong>
+                </article>
+
+                <article class="status-row">
+                  <div class="status-label">
+                    <span class="status-dot ok" id="networkDot"></span>
+                    <span>Связь</span>
+                  </div>
+                  <strong id="networkText">Шина доступна</strong>
+                </article>
+
+                <article class="status-row">
+                  <div class="status-label">
+                    <span class="status-dot ok" id="batteryDot"></span>
+                    <span>АКБ</span>
+                  </div>
+                  <strong id="batteryStateText">Норма, 87%</strong>
+                </article>
+              </div>
+
+              <div class="measure-grid">
+                <article>
+                  <strong>Мощность</strong>
+                  <span id="powerValue">165.2 Вт</span>
+                </article>
+                <article>
+                  <strong>Напряжение</strong>
+                  <span id="voltageValue">231.4 В</span>
+                </article>
+                <article>
+                  <strong>Ток</strong>
+                  <span id="currentValue">0.71 А</span>
+                </article>
+                <article>
+                  <strong>Частота</strong>
+                  <span id="freqValue">50.0 Гц</span>
+                </article>
+              </div>
+            </section>
+
+            <section class="panel lines-panel">
+              <div class="panel-title">
+                <div>
+                  <p class="kicker">Мониторинг</p>
+                  <h2>Линии шкафа</h2>
+                </div>
+              </div>
+
+              <div class="table-head">
+                <span>Линия</span>
+                <span>Наименование</span>
+                <span>Состояние</span>
+                <span>Режим</span>
+                <span>Дата теста</span>
+              </div>
+              <div class="table-scroll">
+                <div class="table-body" id="linesTable"></div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="testView">
+          <section class="panel">
+            <div class="panel-title">
+              <p class="kicker">Тест</p>
+              <h2>Управление проверками</h2>
+            </div>
+
+            <div class="action-row">
+              <button class="action-btn warning" id="manualTestBtn">Тест линий</button>
+              <button class="action-btn warning" id="durationTestBtn">Тест линий на время</button>
+              <button class="action-btn danger" id="stopTestBtn">Стоп тест</button>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" id="batteryView">
+          <div class="overview-grid battery-layout">
+            <section class="panel">
+              <div class="panel-title">
+                <p class="kicker">АКБ</p>
+                <h2>Состояние батареи</h2>
+              </div>
+
+              <div class="battery-hero">
+                <div class="battery-pack">
+                  <div class="battery-cap" id="batteryCap"></div>
+                </div>
+                <div>
+                  <p class="battery-percent" id="batteryPercent">87%</p>
+                  <p class="battery-caption" id="batteryHealth">Заряд в норме, ресурс 92%</p>
+                </div>
+              </div>
+
+              <div class="measure-grid">
+                <article>
+                  <span>Напряжение АКБ</span>
+                  <strong id="batteryVoltage">216.4 В</strong>
+                </article>
+                <article>
+                  <span>Ток заряда</span>
+                  <strong id="batteryChargeCurrent">1.8 А</strong>
+                </article>
+                <article>
+                  <span>Температура</span>
+                  <strong id="batteryTemp">24 °C</strong>
+                </article>
+                <article>
+                  <span>Статус</span>
+                  <strong id="batteryStatus">Буферный заряд</strong>
+                </article>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-title">
+                <p class="kicker">Паспорт</p>
+                <h2>Полный лист характеристик</h2>
+              </div>
+
+              <div class="spec-list" id="batterySpecs"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="scheduleView">
+          <section class="panel">
+            <div class="panel-title panel-title-inline">
+              <div>
+                <p class="kicker">Планировщик</p>
+                <h2>Расписание тестов</h2>
+              </div>
+              <button class="action-btn neutral" id="addScheduleBtn">Добавить запись</button>
+            </div>
+
+            <div class="schedule-list" id="scheduleList"></div>
+          </section>
+        </section>
+
+        <section class="view" id="logsView">
+          <section class="panel">
+              <div class="panel-title panel-title-inline">
+                <div>
+                  <p class="kicker">Журнал</p>
+                  <h2>Системные события</h2>
+                </div>
+              <button class="action-btn neutral" id="exportLogsBtn">Скачать файл журнала</button>
+            </div>
+
+            <div class="log-summary" id="logSummary"></div>
+            <div class="log-list" id="logList"></div>
+          </section>
+        </section>
+
+        <section class="view" id="settingsView">
+          <section class="panel settings-panel">
+            <div class="panel-title">
+              <p class="kicker">Параметры</p>
+              <h2>Настройки контроллера и линий</h2>
+            </div>
+
+            <div class="settings-sections">
+              <section class="settings-block">
+                <div class="settings-actions">
+                  <button class="action-btn neutral settings-action-btn" id="openTimeModalBtn" type="button">Системное время шкафа</button>
+                  <button class="action-btn neutral settings-action-btn" id="openPasswordModalBtn" type="button">Смена пароля шкафа</button>
+                </div>
+              </section>
+
+              <section class="settings-block">
+                <div class="section-head">
+                  <div>
+                    <p class="kicker">Линии</p>
+                    <h3>Настройка всех линий</h3>
+                  </div>
+                </div>
+
+                <div class="line-settings-list" id="lineSettingsList"></div>
+              </section>
+            </div>
+          </section>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-shell" id="lineModal">
+    <div class="modal-card">
+      <div class="section-head">
+        <div>
+          <p class="kicker">Линия</p>
+          <h3 id="lineModalTitle">Настройка линии</h3>
+        </div>
+        <button class="icon-btn" id="closeLineModal" type="button">×</button>
+      </div>
+
+      <div class="modal-grid">
+        <label>
+          <span>Название линии</span>
+          <input id="lineNameInput" type="text">
+        </label>
+        <label>
+          <span>Мощность линии</span>
+          <input id="lineBackendPower" type="text" readonly>
+        </label>
+        <label>
+          <span>Ручной ввод мощности</span>
+          <input id="lineManualPower" type="number" step="0.1">
+        </label>
+        <label>
+          <span>Допуск мощности, %</span>
+          <input id="lineToleranceInput" type="number">
+        </label>
+        <label>
+          <span>Режим линии</span>
+          <select id="lineModeInput">
+            <option value="0">постоянная</option>
+            <option value="1">непостоянная</option>
+            <option value="2">линия отключена</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="modal-subtitle">
+        <p class="kicker">Параметры</p>
+        <h3>Параметры линии</h3>
+      </div>
+
+      <div class="line-test-display">
+        <article>
+          <span>Мощность</span>
+          <strong id="lineMeasuredPowerDisplay">0 Вт</strong>
+        </article>
+        <article>
+          <span>Напряжение</span>
+          <strong id="lineVoltageDisplay">0 В</strong>
+        </article>
+        <article>
+          <span>Ток линии</span>
+          <strong id="lineCurrentDisplay">0 А</strong>
+        </article>
+        <article>
+          <span>Статус</span>
+          <strong id="lineStatusDisplay">Резерв</strong>
+        </article>
+      </div>
+
+      <div class="action-row">
+        <button class="action-btn warning" id="runLineTestBtn" type="button">Запуск теста</button>
+        <button class="action-btn neutral" id="applyMeasuredPowerBtn" type="button">Ввести измеренное</button>
+        <button class="action-btn neutral" id="saveLineBtn" type="button">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-shell" id="scheduleModal">
+    <div class="modal-card">
+      <div class="section-head">
+        <div>
+          <p class="kicker">Расписание</p>
+          <h3 id="scheduleModalTitle">Настройка записи</h3>
+        </div>
+        <button class="icon-btn" id="closeScheduleModal" type="button">×</button>
+      </div>
+
+      <div class="modal-grid">
+        <label>
+          <span>Период</span>
+          <select id="schedulePeriodInput">
+            <option value="один раз">один раз</option>
+            <option value="ежедневно">ежедневно</option>
+            <option value="дни недели">дни недели</option>
+            <option value="раз в месяц">раз в месяц</option>
+            <option value="раз в три месяца">раз в три месяца</option>
+            <option value="раз в пол года">раз в пол года</option>
+            <option value="раз в год">раз в год</option>
+          </select>
+        </label>
+        <label>
+          <span>Тип теста</span>
+          <select id="scheduleTypeInput">
+            <option value="Функциональный">Функциональный</option>
+            <option value="На время">На время</option>
+          </select>
+        </label>
+        <label>
+          <span>Дата запуска</span>
+          <input id="scheduleDateInput" type="date">
+        </label>
+        <label>
+          <span>Время запуска</span>
+          <input id="scheduleTimeInput" type="time">
+        </label>
+        <label id="scheduleWeekdaysField">
+          <span>Дни недели</span>
+          <div class="weekday-row" id="scheduleWeekdaysInput">
+            <label class="weekday-chip"><input type="checkbox" value="Mon"><span>Пн</span></label>
+            <label class="weekday-chip"><input type="checkbox" value="Tue"><span>Вт</span></label>
+            <label class="weekday-chip"><input type="checkbox" value="Wed"><span>Ср</span></label>
+            <label class="weekday-chip"><input type="checkbox" value="Thu"><span>Чт</span></label>
+            <label class="weekday-chip"><input type="checkbox" value="Fri"><span>Пт</span></label>
+            <label class="weekday-chip"><input type="checkbox" value="Sat"><span>Сб</span></label>
+            <label class="weekday-chip"><input type="checkbox" value="Sun"><span>Вс</span></label>
+          </div>
+        </label>
+      </div>
+
+      <div class="action-row">
+        <button class="action-btn neutral" id="saveScheduleBtn" type="button">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-shell" id="timeModal">
+    <div class="modal-card small-modal">
+      <div class="section-head">
+        <div>
+          <p class="kicker">Время</p>
+          <h3>Системное время шкафа</h3>
+        </div>
+        <button class="icon-btn" id="closeTimeModal" type="button">×</button>
+      </div>
+
+      <div class="modal-grid">
+        <label>
+          <span>Дата</span>
+          <input id="systemDate" type="date">
+        </label>
+        <label>
+          <span>Время</span>
+          <input id="systemTime" type="time">
+        </label>
+      </div>
+
+      <div class="action-row">
+        <button class="action-btn neutral" id="syncNowBtn" type="button">Синхронизировать</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-shell" id="passwordModal">
+    <div class="modal-card small-modal">
+      <div class="section-head">
+        <div>
+          <p class="kicker">Доступ</p>
+          <h3>Смена пароля шкафа</h3>
+        </div>
+        <button class="icon-btn" id="closePasswordModal" type="button">×</button>
+      </div>
+
+      <div class="modal-grid">
+        <label>
+          <span>Новый пароль</span>
+          <input id="newPassword" type="password" placeholder="Введите новый пароль">
+        </label>
+        <label>
+          <span>Повтор пароля</span>
+          <input id="repeatPassword" type="password" placeholder="Повторите новый пароль">
+        </label>
+      </div>
+
+      <div class="action-row">
+        <button class="action-btn neutral" id="savePasswordBtn" type="button">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="./assets/app.js"></script>
+</body>
+</html>

@@ -25,12 +25,15 @@ add_library(core STATIC
     modbus/ModbusRtuSlave.h
     modbus/ModbusTcpServer.h
     modbus/ModbusTcpServer.cpp
+    web/WebApiServer.h
+    web/WebApiServer.cpp
 )
 
 target_include_directories(core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_CURRENT_SOURCE_DIR}/../modbus
+    ${CMAKE_CURRENT_SOURCE_DIR}/../web
 )
 
 target_link_libraries(core PUBLIC
@@ -39,4 +42,6 @@ target_link_libraries(core PUBLIC
     Qt6::SerialBus
     Qt6::Quick
     Qt6::Gui
+    Qt6::HttpServer
+    Qt6::Network
 )
