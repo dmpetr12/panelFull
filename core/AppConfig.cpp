@@ -31,6 +31,8 @@ int AppConfig::modbusTcpPort() const { return m_modbusTcp.port; }
 
 bool AppConfig::opcUaEnabled() const { return m_opcUa.enabled; }
 QString AppConfig::opcUaEndpoint() const { return m_opcUa.endpoint; }
+QString AppConfig::opcUaBind() const { return m_opcUa.bind; }
+int AppConfig::opcUaPort() const { return m_opcUa.port; }
 QString AppConfig::opcUaApplicationUri() const { return m_opcUa.applicationUri; }
 QString AppConfig::opcUaServerName() const { return m_opcUa.serverName; }
 QString AppConfig::opcUaSecurityPolicy() const { return m_opcUa.securityPolicy; }
@@ -137,6 +139,12 @@ bool AppConfig::load(const QString &filePath)
         if (opc.contains("enabled") && opc["enabled"].isBool())
             m_opcUa.enabled = opc["enabled"].toBool(m_opcUa.enabled);
 
+        if (opc.contains("bind") && opc["bind"].isString())
+            m_opcUa.bind = opc["bind"].toString(m_opcUa.bind);
+
+        if (opc.contains("port") && opc["port"].isDouble())
+            m_opcUa.port = opc["port"].toInt(m_opcUa.port);
+
         if (opc.contains("endpoint") && opc["endpoint"].isString())
             m_opcUa.endpoint = opc["endpoint"].toString(m_opcUa.endpoint);
 
@@ -148,6 +156,13 @@ bool AppConfig::load(const QString &filePath)
 
         if (opc.contains("securityPolicy") && opc["securityPolicy"].isString())
             m_opcUa.securityPolicy = opc["securityPolicy"].toString(m_opcUa.securityPolicy);
+
+        if ((!opc.contains("endpoint") || !opc["endpoint"].isString())
+            && !m_opcUa.bind.isEmpty() && m_opcUa.port > 0) {
+            m_opcUa.endpoint = QStringLiteral("opc.tcp://%1:%2")
+                                   .arg(m_opcUa.bind)
+                                   .arg(m_opcUa.port);
+        }
     }
 
     if (obj.contains("webServer") && obj["webServer"].isObject()) {
@@ -225,6 +240,8 @@ bool AppConfig::save(const QString &filePath) const
 
     QJsonObject opc;
     opc["enabled"] = m_opcUa.enabled;
+    opc["bind"] = m_opcUa.bind;
+    opc["port"] = m_opcUa.port;
     opc["endpoint"] = m_opcUa.endpoint;
     opc["applicationUri"] = m_opcUa.applicationUri;
     opc["serverName"] = m_opcUa.serverName;

@@ -28,6 +28,8 @@ class AppConfig : public QObject
 
     Q_PROPERTY(bool opcUaEnabled READ opcUaEnabled NOTIFY configChanged)
     Q_PROPERTY(QString opcUaEndpoint READ opcUaEndpoint NOTIFY configChanged)
+    Q_PROPERTY(QString opcUaBind READ opcUaBind NOTIFY configChanged)
+    Q_PROPERTY(int opcUaPort READ opcUaPort NOTIFY configChanged)
     Q_PROPERTY(QString opcUaApplicationUri READ opcUaApplicationUri NOTIFY configChanged)
     Q_PROPERTY(QString opcUaServerName READ opcUaServerName NOTIFY configChanged)
     Q_PROPERTY(QString opcUaSecurityPolicy READ opcUaSecurityPolicy NOTIFY configChanged)
@@ -64,6 +66,8 @@ public:
     struct OpcUaSettings
     {
         bool enabled = false;
+        QString bind = "0.0.0.0";
+        int port = 4840;
         QString endpoint = "opc.tcp://0.0.0.0:4840";
         QString applicationUri = "urn:emergency-lighting:controller";
         QString serverName = "Emergency Lighting Controller";
@@ -120,6 +124,8 @@ public:
 
     bool opcUaEnabled() const;
     QString opcUaEndpoint() const;
+    QString opcUaBind() const;
+    int opcUaPort() const;
     QString opcUaApplicationUri() const;
     QString opcUaServerName() const;
     QString opcUaSecurityPolicy() const;

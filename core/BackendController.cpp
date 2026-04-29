@@ -35,6 +35,7 @@
 #include "schedulemanager.h"
 #include "MaintenanceChecker.h"
 #include "BatteryController.h"
+#include "OpcUaServer.h"
 #include "line.h"
 #include "modbus/ModbusRtuSlave.h"
 #include "modbus/ModbusTcpServer.h"
@@ -99,6 +100,7 @@ bool BackendController::start()
     setupTesting();
     setupSchedules();
     setupBattery();
+    setupOpcUa();
     setupConnections();
     setupMaintenance();
     applyInitialState();
@@ -152,6 +154,8 @@ void BackendController::stop()
 
     if (m_bus)
         m_bus->disconnectDevice();
+    if (m_opcUaServer)
+        m_opcUaServer->stop();
     if (m_modbusSlave)
         m_modbusSlave->stop();
     if (m_modbusTcpServer)
@@ -173,6 +177,7 @@ void BackendController::createObjects()
     if (!m_maintenanceChecker)m_maintenanceChecker = new MaintenanceChecker(this);
     if (!m_passwordManager)   m_passwordManager = new PasswordManager(this);
     if (!m_batteryController) m_batteryController = new BatteryController(this);
+    if (!m_opcUaServer)       m_opcUaServer = new OpcUaServer(this, this);
 
     if (!m_inletU)        m_inletU = new ValueProvider(this);
     if (!m_inletI)        m_inletI = new ValueProvider(this);
@@ -623,6 +628,25 @@ void BackendController::setupBattery()
                      });
 }
 
+void BackendController::setupOpcUa()
+{
+    if (!m_opcUaServer)
+        return;
+
+    const bool ok = m_opcUaServer->start(m_config);
+    if (!ok) {
+        emit logMessage(QStringLiteral("OPC UA: не удалось инициализировать каркас сервера"));
+        return;
+    }
+
+    if (m_config && m_config->opcUaEnabled()) {
+        emit logMessage(QStringLiteral("OPC UA config: bind=%1 port=%2 endpoint=%3")
+                            .arg(m_config->opcUaBind())
+                            .arg(m_config->opcUaPort())
+                            .arg(m_config->opcUaEndpoint()));
+    }
+}
+
 void BackendController::setupConnections()
 {
     QObject::connect(this, &BackendController::logMessage,
@@ -642,6 +666,11 @@ void BackendController::setupConnections()
 
     QObject::connect(m_batteryController, &BatteryController::stateChanged,
                      this, &BackendController::stateChanged);
+
+    if (m_opcUaServer) {
+        QObject::connect(this, &BackendController::stateChanged,
+                         m_opcUaServer, &OpcUaServer::modelChanged);
+    }
 
     if (m_modbusTcpServer) {
         QObject::connect(m_modbusTcpServer, &ModbusTcpServer::logMessage,
@@ -1216,6 +1245,11 @@ PasswordManager* BackendController::passwordManager() const
 BatteryController* BackendController::batteryController() const
 {
     return m_batteryController;
+}
+
+OpcUaServer* BackendController::opcUaServer() const
+{
+    return m_opcUaServer;
 }
 
 ValueProvider* BackendController::inletU() const

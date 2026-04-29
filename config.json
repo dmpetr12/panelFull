@@ -23,7 +23,7 @@
   },
 
   "opcUa": {
-    "enabled": false,
+    "enabled": true,
     "endpoint": "opc.tcp://0.0.0.0:4840",
     "applicationUri": "urn:emergency-lighting:controller",
     "serverName": "Emergency Lighting Controller",

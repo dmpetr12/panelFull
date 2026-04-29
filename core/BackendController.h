@@ -14,6 +14,7 @@ class MaintenanceChecker;
 class PasswordManager;
 class ValueProvider;
 class BatteryController;
+class OpcUaServer;
 class ModbusRtuSlave;
 class ModbusTcpServer;
 
@@ -69,6 +70,7 @@ public:
     MaintenanceChecker* maintenanceChecker() const;
     PasswordManager* passwordManager() const;
     BatteryController* batteryController() const;
+    OpcUaServer* opcUaServer() const;
     DeviceSnapshot snapshot() const;
     QVariantMap currentUiEvent() const;
 
@@ -109,6 +111,7 @@ private:
     void setupMaintenance();
     void setupSchedules();
     void setupBattery();
+    void setupOpcUa();
     void setupConnections();
     void applyInitialState();
     void setCurrentUiEvent(const QString &code,
@@ -131,6 +134,7 @@ private:
     MaintenanceChecker *m_maintenanceChecker = nullptr;
     PasswordManager *m_passwordManager = nullptr;
     BatteryController *m_batteryController = nullptr;
+    OpcUaServer *m_opcUaServer = nullptr;
 
     ValueProvider *m_inletU = nullptr;
     ValueProvider *m_inletI = nullptr;

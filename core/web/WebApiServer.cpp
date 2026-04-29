@@ -1,5 +1,6 @@
 #include "WebApiServer.h"
 #include "../core/BackendController.h"
+#include "../core/OpcUaServer.h"
 
 #include <QHttpServerRequest>
 #include <QHttpServerResponder>
@@ -117,6 +118,20 @@ void WebApiServer::setupRoutes()
         QJsonObject obj;
         obj["ok"] = true;
         obj["data"] = mapToJsonObject(m_backend->webState());
+        return jsonOk(obj);
+    });
+
+    // opc ua skeleton model
+    m_server.route("/api/opcua/model", [this](const QHttpServerRequest &request) {
+        if (!checkAuth(request))
+            return jsonError("unauthorized", 401);
+
+        if (!m_backend || !m_backend->opcUaServer())
+            return jsonError("opc ua unavailable", 500);
+
+        QJsonObject obj;
+        obj["ok"] = true;
+        obj["data"] = mapToJsonObject(m_backend->opcUaServer()->namespaceSnapshot());
         return jsonOk(obj);
     });
 
