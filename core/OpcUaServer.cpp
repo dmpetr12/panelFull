@@ -3,12 +3,15 @@
 #include "AppConfig.h"
 #include "BackendController.h"
 #include "logger.h"
+#include "PasswordManager.h"
 
 #include <QByteArray>
 
 namespace {
 
 #ifdef PANEL_HAS_OPEN62541_SERVER
+static const char *kOpcUaAdminUser = "admin";
+
 static UA_NodeId makeStringNodeId(quint16 nsIndex, const QString &id)
 {
     return UA_NODEID_STRING_ALLOC(nsIndex, const_cast<char *>(id.toUtf8().constData()));
@@ -23,6 +26,35 @@ static UA_LocalizedText makeText(const QString &text)
 {
     return UA_LOCALIZEDTEXT_ALLOC(const_cast<char *>("ru-RU"),
                                   const_cast<char *>(text.toUtf8().constData()));
+}
+
+static UA_StatusCode opcUaLoginCallback(const UA_String *userName,
+                                        const UA_ByteString *password,
+                                        size_t usernamePasswordLoginSize,
+                                        const UA_UsernamePasswordLogin *usernamePasswordLogin,
+                                        void **sessionContext,
+                                        void *loginContext)
+{
+    Q_UNUSED(usernamePasswordLoginSize);
+    Q_UNUSED(usernamePasswordLogin);
+    Q_UNUSED(sessionContext);
+
+    PasswordManager *passwordManager = static_cast<PasswordManager *>(loginContext);
+    if (!passwordManager || !userName || !password)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    const QString user = QString::fromUtf8(reinterpret_cast<const char *>(userName->data),
+                                           int(userName->length));
+    const QString pass = QString::fromUtf8(reinterpret_cast<const char *>(password->data),
+                                           int(password->length));
+
+    if (user != QLatin1String(kOpcUaAdminUser))
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+
+    if (pass != passwordManager->password())
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+
+    return UA_STATUSCODE_GOOD;
 }
 #endif
 
@@ -233,6 +265,11 @@ void OpcUaServer::refreshModel()
 #ifdef PANEL_HAS_OPEN62541_SERVER
 bool OpcUaServer::initServer()
 {
+    if (!m_backend || !m_backend->passwordManager()) {
+        log(QStringLiteral("OPC UA: password manager недоступен"));
+        return false;
+    }
+
     m_server = UA_Server_new();
     if (!m_server) {
         log(QStringLiteral("OPC UA: UA_Server_new failed"));
@@ -251,11 +288,39 @@ bool OpcUaServer::initServer()
         return false;
     }
 
+    UA_UsernamePasswordLogin adminLogin{};
+    adminLogin.username = UA_STRING_ALLOC(const_cast<char *>(kOpcUaAdminUser));
+
+    const QByteArray currentPassword = m_backend->passwordManager()->password().toUtf8();
+    adminLogin.password = UA_STRING_ALLOC(currentPassword.constData());
+
+    const UA_StatusCode acStatus = UA_AccessControl_defaultWithLoginCallback(
+        config,
+        false,
+        nullptr,
+        1,
+        &adminLogin,
+        opcUaLoginCallback,
+        m_backend->passwordManager());
+
+    UA_String_clear(&adminLogin.username);
+    UA_String_clear(&adminLogin.password);
+
+    if (acStatus != UA_STATUSCODE_GOOD) {
+        log(QStringLiteral("OPC UA: access control init failed, status=0x%1")
+                .arg(QString::number(acStatus, 16)));
+        UA_Server_delete(m_server);
+        m_server = nullptr;
+        return false;
+    }
+
     config->tcpReuseAddr = true;
     m_namespaceIndex = UA_Server_addNamespace(
         m_server,
         QByteArrayLiteral("urn:panelfull:emergency-lighting").constData());
     log(QStringLiteral("OPC UA: namespace index=%1").arg(m_namespaceIndex));
+    log(QStringLiteral("OPC UA: anonymous login disabled, user=%1")
+            .arg(QLatin1String(kOpcUaAdminUser)));
     return true;
 }
 
