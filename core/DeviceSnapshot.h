@@ -70,13 +70,15 @@ struct DeviceSnapshot
     bool noMeasTestActive = false;
 
     bool testRunning = false;
+    int testPlannedSec = 0;
+    int testRemainingSec = 0;
 
-    int systemState = 0;
+    int systemState = 0; // 0 = OK, 1 = Alarm
 
     bool relayStateKnown = false;
     bool relayMismatch = false;
 
-    int cabinetMode = 0; // Normal / Fire / Test / Alarm
+    int cabinetMode = 0; // 0 = Duty, 1 = Fire, 2 = Test
 
     std::vector<LineSnapshot> lines;
     BatterySnapshot battery;

@@ -90,6 +90,8 @@ inline QJsonObject deviceSnapshotToJson(const DeviceSnapshot &s)
     obj["noMeasTestActive"] = s.noMeasTestActive;
 
     obj["testRunning"] = s.testRunning;
+    obj["testPlannedSec"] = s.testPlannedSec;
+    obj["testRemainingSec"] = s.testRemainingSec;
 
     obj["systemState"] = s.systemState;
 

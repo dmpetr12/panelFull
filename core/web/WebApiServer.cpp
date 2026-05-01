@@ -291,6 +291,33 @@ void WebApiServer::setupRoutes()
         return jsonOk(obj);
     });
 
+    m_server.route("/api/logs/files", [this](const QHttpServerRequest &request) {
+        if (!checkAuth(request))
+            return jsonError("unauthorized", 401);
+
+        if (!m_backend)
+            return jsonError("backend unavailable", 500);
+
+        QJsonObject obj;
+        obj["ok"] = true;
+        obj["data"] = listToJsonArray(m_backend->logFilesInfo());
+        return jsonOk(obj);
+    });
+
+    m_server.route("/api/logs/download-all", [this](const QHttpServerRequest &request) {
+        if (!checkAuth(request))
+            return jsonError("unauthorized", 401);
+
+        if (!m_backend)
+            return jsonError("backend unavailable", 500);
+
+        return QHttpServerResponse(
+            "text/plain; charset=utf-8",
+            m_backend->readAllLogsText().toUtf8(),
+            QHttpServerResponder::StatusCode::Ok
+        );
+    });
+
     // schedule
     m_server.route("/api/schedule", [this]() {
         if (!m_backend)

@@ -19,6 +19,8 @@ class PanelFacade : public QObject
 
     Q_PROPERTY(bool busConnected READ busConnected NOTIFY changed)
     Q_PROPERTY(bool testRunning READ testRunning NOTIFY changed)
+    Q_PROPERTY(int testPlannedSec READ testPlannedSec NOTIFY changed)
+    Q_PROPERTY(int testRemainingSec READ testRemainingSec NOTIFY changed)
 
     // батарея
     Q_PROPERTY(double batteryChargePercent READ batteryChargePercent NOTIFY changed)
@@ -84,6 +86,8 @@ public:
 
     bool busConnected() const;
     bool testRunning() const;
+    int testPlannedSec() const;
+    int testRemainingSec() const;
 
     // батарея
     double batteryChargePercent() const;

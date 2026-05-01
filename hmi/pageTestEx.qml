@@ -27,6 +27,20 @@ Rectangle {
             countdown = panel.calcAllLinesTestDurationSec()
     }
 
+    function formatCountdown(totalSeconds) {
+        if (totalSeconds <= 0)
+            return ""
+
+        var hours = Math.floor(totalSeconds / 3600)
+        var minutes = Math.floor((totalSeconds % 3600) / 60)
+        var seconds = totalSeconds % 60
+
+        if (hours > 0)
+            return ("0" + hours).slice(-2) + ":" + ("0" + minutes).slice(-2) + ":" + ("0" + seconds).slice(-2)
+
+        return minutes + ":" + ("0" + seconds).slice(-2)
+    }
+
     function stopCurrent() {
         if (stopInProgress)
             return
@@ -102,13 +116,10 @@ Rectangle {
         function onChanged() {
             win.testStart = panel.testRunning
 
-            if (panel.testRunning) {
-                if (!countdownTimer.running && countdown > 0)
-                    countdownTimer.start()
-            } else {
-                countdownTimer.stop()
+            if (panel.testRunning)
+                countdown = panel.testRemainingSec
+            else
                 countdown = 0
-            }
 
             if (initializingStop) {
                 if (!panel.testRunning) {
@@ -216,27 +227,8 @@ Rectangle {
                         anchors.centerIn: parent
                         font.pixelSize: 60
                         text: panel.testRunning
-                              ? Math.floor(countdown / 60) + ":" + ("0" + (countdown % 60)).slice(-2)
+                              ? testEx.formatCountdown(panel.testRemainingSec)
                               : ""
-                    }
-
-                    Timer {
-                        id: countdownTimer
-                        interval: 1000
-                        repeat: true
-                        running: false
-
-                        onTriggered: {
-                            if (countdown > 0) {
-                                countdown--
-                            } else {
-                                stop()
-                                if (panel.testRunning)
-                                    testEx.stopCurrent()
-                                else
-                                    win.testStart = false
-                            }
-                        }
                     }
                 }
 
@@ -268,10 +260,10 @@ Rectangle {
         }
         Row {
             Text {
-                text: panel.cabinetMode === 3 ? "Шкаф в аварии" :
+                text: panel.systemState === 1 ? "Авария шкафа" :
                       panel.cabinetMode === 2 ? "Тест подтверждён" :
                       panel.testRunning ? "Тест запускается" : ""
-                color: panel.cabinetMode === 3 ? "#FF4C4C" :
+                color: panel.systemState === 1 ? "#FF4C4C" :
                        panel.cabinetMode === 2 ? "#5EC85E" : "#FFC700"
                 font.pixelSize: 28
             }

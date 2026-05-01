@@ -9,6 +9,14 @@ static Line::Status safeRestoreStatus(Line::Status st)
     return st;
 }
 
+int TestController::remainingTestDurationSec() const
+{
+    if (!testActive() || !m_testEndsAt.isValid())
+        return 0;
+
+    return qMax(0, int(QDateTime::currentDateTime().secsTo(m_testEndsAt)));
+}
+
 void TestController::setCurrentTestKind(TestKind k)
 {
     if (m_currentTestKind == k)
@@ -16,6 +24,31 @@ void TestController::setCurrentTestKind(TestKind k)
 
     m_currentTestKind = k;
     emit currentTestKindChanged();
+}
+
+void TestController::setTestTiming(int plannedDurationSec)
+{
+    const int normalized = qMax(0, plannedDurationSec);
+    const QDateTime newEndsAt = normalized > 0
+        ? QDateTime::currentDateTime().addSecs(normalized)
+        : QDateTime();
+
+    if (m_plannedTestDurationSec == normalized && m_testEndsAt == newEndsAt)
+        return;
+
+    m_plannedTestDurationSec = normalized;
+    m_testEndsAt = newEndsAt;
+    emit testTimingChanged();
+}
+
+void TestController::clearTestTiming()
+{
+    if (m_plannedTestDurationSec == 0 && !m_testEndsAt.isValid())
+        return;
+
+    m_plannedTestDurationSec = 0;
+    m_testEndsAt = QDateTime();
+    emit testTimingChanged();
 }
 
 TestController::TestController(QObject *parent)
@@ -88,8 +121,11 @@ void TestController::startTestNoMeasure(int sec)
         setActive(Active::None);
         setSource(Source::None);
         setCurrentTestKind(TestKind::None);
+        clearTestTiming();
         return;
     }
+
+    setTestTiming(sec);
 
     m_noMeasTimer = new QTimer(this);
     m_noMeasTimer->setSingleShot(true);
@@ -103,6 +139,7 @@ void TestController::startTestNoMeasure(int sec)
         setActive(Active::None);
         setSource(Source::None);
         setCurrentTestKind(TestKind::None);
+        clearTestTiming();
     });
 
     m_noMeasTimer->start(sec * 1000);
@@ -197,6 +234,7 @@ void TestController::stopAnyActiveTest()
     setSource(Source::None);
     setMeasuredLine(-1);
     setCurrentTestKind(TestKind::None);
+    clearTestTiming();
 }
 
 void TestController::cleanupSingleTimer()
@@ -279,6 +317,7 @@ void TestController::startSingleLineTest(int lineIndex, int durationMs)
         setSource(Source::None);
         setMeasuredLine(-1);
         setCurrentTestKind(TestKind::None);
+        clearTestTiming();
         return;
     }
 
@@ -301,10 +340,12 @@ void TestController::startSingleLineTest(int lineIndex, int durationMs)
         setActive(Active::None);
         setSource(Source::None);
         setCurrentTestKind(TestKind::None);
+        clearTestTiming();
         return;
     }
 
     setMeasuredLine(lineIndex);
+    setTestTiming(durationMs / 1000);
 
     m_singleTestTimer = new QTimer(this);
     m_singleTestTimer->setSingleShot(true);
@@ -334,6 +375,7 @@ void TestController::startSingleLineTest(int lineIndex, int durationMs)
         setSource(Source::None);
         setCurrentTestKind(TestKind::None);
         endMeasurements();
+        clearTestTiming();
     });
 
     m_singleTestTimer->start(durationMs);
@@ -353,6 +395,7 @@ void TestController::startAllLinesTest(int durationMs)
         setSource(Source::None);
         setMeasuredLine(-1);
         setCurrentTestKind(TestKind::None);
+        clearTestTiming();
         return;
     }
 
@@ -379,7 +422,6 @@ void TestController::startAllLinesTest(int durationMs)
     int warmupMs = durationMs - countFact * m_shotTimeMesure * 1000;
     if (warmupMs < m_shotTimeWarm * 1000)
         warmupMs = m_shotTimeWarm * 1000;
-
     if (!m_io->requestStepTestStart(m_allTestCurrentIndex)) {
         m_allTestRunning = false;
         endMeasurements();
@@ -388,10 +430,12 @@ void TestController::startAllLinesTest(int durationMs)
         setActive(Active::None);
         setSource(Source::None);
         setCurrentTestKind(TestKind::None);
+        clearTestTiming();
         return;
     }
 
     setMeasuredLine(m_allTestCurrentIndex);
+    setTestTiming(durationMs / 1000);
 
     m_allTestTimer->start(warmupMs);
     log(QString("Тест всех линий старт, прогрев %1 ms").arg(warmupMs));
@@ -432,6 +476,7 @@ void TestController::handleAllLinesStep()
         setActive(Active::None);
         setSource(Source::None);
         setCurrentTestKind(TestKind::None);
+        clearTestTiming();
 
         if (m_currentAllIsLong)
             recordLongSystemTestResult(m_currentAllAllOk);
@@ -455,6 +500,7 @@ void TestController::handleAllLinesStep()
         setSource(Source::None);
         setCurrentTestKind(TestKind::None);
         setMeasuredLine(-1);
+        clearTestTiming();
         return;
     }
 

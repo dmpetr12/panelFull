@@ -1,6 +1,11 @@
 const state = {
   cabinetMode: 0,
   systemState: 0,
+  testRunning: false,
+  testPlannedSec: 0,
+  testRemainingSec: 0,
+  programFireActive: false,
+  relayStateKnown: true,
   busConnected: true,
   backendOnline: false,
   temperature: null,
@@ -139,6 +144,9 @@ const refs = {
   manualTestBtn: document.getElementById("manualTestBtn"),
   durationTestBtn: document.getElementById("durationTestBtn"),
   stopTestBtn: document.getElementById("stopTestBtn"),
+  testStatusText: document.getElementById("testStatusText"),
+  testRemainingValue: document.getElementById("testRemainingValue"),
+  testPlannedValue: document.getElementById("testPlannedValue"),
   batteryCap: document.getElementById("batteryCap"),
   batteryPercent: document.getElementById("batteryPercent"),
   batteryHealth: document.getElementById("batteryHealth"),
@@ -240,6 +248,22 @@ function formatValue(value, unit = "", digits = 1) {
   return unit ? `${formatted} ${unit}` : formatted;
 }
 
+function formatDurationSeconds(totalSeconds) {
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
+    return "—";
+  }
+
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+  }
+
+  return `${pad(minutes)}:${pad(seconds)}`;
+}
+
 function showToast(message) {
   toast.textContent = message;
   toast.classList.add("visible");
@@ -306,7 +330,8 @@ async function apiRequest(path, options = {}) {
   const {
     method = "GET",
     body = null,
-    auth = false
+    auth = false,
+    rawResponse = false
   } = options;
 
   const headers = {
@@ -343,6 +368,14 @@ async function apiRequest(path, options = {}) {
     }
   }
 
+  if (rawResponse) {
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(text || `HTTP ${response.status}`);
+    }
+    return response;
+  }
+
   const payload = await response.json().catch(() => null);
   if (!response.ok || !payload || payload.ok !== true) {
     if (response.status === 401 && auth) {
@@ -372,24 +405,21 @@ function switchView(name) {
 }
 
 function getModeMeta() {
-  if (state.cabinetMode === 3) {
-    return { text: "Авария", className: "alarm" };
-  }
   if (state.cabinetMode === 2) {
     return { text: "Тест", className: "warning" };
+  }
+  if (state.testRunning) {
+    return { text: "Тест запускается", className: "warning" };
   }
   if (state.cabinetMode === 1) {
     return { text: "Пожар", className: "danger" };
   }
-  return { text: "Работа", className: "work" };
+  return { text: "Нормальный", className: "work" };
 }
 
 function getSystemMeta() {
-  if (state.systemState === 2) {
-    return { text: "Тест", className: "warning" };
-  }
   if (state.systemState === 1) {
-    return { text: "Ошибка", className: "alarm" };
+    return { text: "Авария", className: "alarm" };
   }
   return { text: "OK", className: "ok" };
 }
@@ -450,6 +480,11 @@ function applyBackendState(data) {
   state.serverTime = data.serverTime || state.serverTime;
   state.cabinetMode = Number.isFinite(data.cabinetMode) ? data.cabinetMode : state.cabinetMode;
   state.systemState = Number.isFinite(data.systemState) ? data.systemState : state.systemState;
+  state.testRunning = Boolean(data.testRunning);
+  state.testPlannedSec = Number.isFinite(data.testPlannedSec) ? Math.max(0, data.testPlannedSec) : 0;
+  state.testRemainingSec = Number.isFinite(data.testRemainingSec) ? Math.max(0, data.testRemainingSec) : 0;
+  state.programFireActive = Boolean(data.programFireActive);
+  state.relayStateKnown = data.relayStateKnown !== false;
   state.busConnected = Boolean(data.busConnected);
 
   state.temperatureAvailable = Boolean(data.temperatureAvailable);
@@ -542,8 +577,26 @@ async function refreshSchedule() {
 
 async function refreshLogs() {
   try {
-    const payload = await apiRequest("/api/logs?offset=0&limit=200");
-    state.logs = Array.isArray(payload.data) ? payload.data : [];
+    const batchSize = 200;
+    let offset = 0;
+    const allLogs = [];
+
+    while (true) {
+      const payload = await apiRequest(`/api/logs?offset=${offset}&limit=${batchSize}`);
+      const chunk = Array.isArray(payload.data) ? payload.data : [];
+      allLogs.push(...chunk);
+
+      if (chunk.length < batchSize) {
+        break;
+      }
+
+      offset += chunk.length;
+      if (offset >= 10000) {
+        break;
+      }
+    }
+
+    state.logs = allLogs;
     renderLogs();
   } catch (error) {
     showToast(`Не удалось загрузить журнал: ${error.message}`);
@@ -580,6 +633,7 @@ async function pollBackendStatus() {
   } catch (error) {
     state.backendOnline = false;
     renderOverview();
+    renderTestPanel();
   } finally {
     backendRequestInFlight = false;
   }
@@ -601,16 +655,21 @@ function renderLines() {
 
   linesTable.innerHTML = usedLines.map((line) => {
     const index = state.lines.indexOf(line);
-    const status = getLineStatusMeta(line.status);
+    const status = state.relayStateKnown
+      ? getLineStatusMeta(line.status)
+      : { text: "—", className: "idle" };
+    const outputStateText = state.relayStateKnown
+      ? (line.lineState === 1 ? "вкл" : "выкл")
+      : "—";
     return `
       <article class="line-row">
         <strong>${index + 1}</strong>
         <strong>${line.description}</strong>
         <div class="line-state">
           <span class="state-pill ${status.className}">${status.text}</span>
-          <span>${line.lineState === 1 ? "вкл" : "выкл"}</span>
+          <span>${outputStateText}</span>
         </div>
-        <span>${line.mode === 1 ? "непост." : "резерв"}</span>
+        <span>${line.mode === 0 ? "пост." : line.mode === 1 ? "непост." : "откл."}</span>
         <span>${formatDateOnly(line.lastMeasuredTest)}</span>
       </article>
     `;
@@ -618,20 +677,40 @@ function renderLines() {
 }
 
 function renderSystemAction() {
-  if (state.cabinetMode === 1) {
-    refs.systemActionBtn.textContent = "Остановить пожар";
-    refs.systemActionBtn.className = "action-btn danger nav-action-btn";
-    return;
-  }
-
-  if (state.cabinetMode === 2) {
+  if (state.testRunning) {
     refs.systemActionBtn.textContent = "Остановить тест";
     refs.systemActionBtn.className = "action-btn danger nav-action-btn";
     return;
   }
 
-  refs.systemActionBtn.textContent = "Включить пожар";
+  if (state.programFireActive) {
+    refs.systemActionBtn.textContent = "Сброс \"Пожар\"";
+    refs.systemActionBtn.className = "action-btn danger nav-action-btn";
+    return;
+  }
+
+  refs.systemActionBtn.textContent = "Пуск \"Пожар\"";
   refs.systemActionBtn.className = "action-btn nav-action-btn fire-start-btn";
+}
+
+function renderTestPanel() {
+  let statusText = "Ожидание";
+
+  if (!state.backendOnline) {
+    statusText = "Нет связи с backend";
+  } else if (state.cabinetMode === 2) {
+    statusText = "Тест подтверждён";
+  } else if (state.testRunning) {
+    statusText = "Тест запускается";
+  }
+
+  refs.testStatusText.textContent = statusText;
+  refs.testRemainingValue.textContent = state.backendOnline
+    ? formatDurationSeconds(state.testRemainingSec)
+    : "—";
+  refs.testPlannedValue.textContent = state.backendOnline
+    ? formatDurationSeconds(state.testPlannedSec)
+    : "—";
 }
 
 function renderSchedule() {
@@ -673,7 +752,7 @@ function renderBattery() {
   refs.batteryStatus.textContent = state.battery.chargeStatus;
   refs.batteryCap.style.width = `${state.battery.percentAvailable ? state.battery.percent : 0}%`;
 
-  refs.stopTestBtn.disabled = state.cabinetMode !== 2;
+  refs.stopTestBtn.disabled = !state.testRunning;
 
   const specs = [
     ["Состояние", state.battery.stateText],
@@ -853,14 +932,14 @@ function bindEvents() {
 
   refs.systemActionBtn.addEventListener("click", async () => {
     try {
-      if (state.cabinetMode === 1) {
+      if (state.programFireActive) {
         await apiRequest("/api/fire/off", { method: "POST", auth: true });
         await pollBackendStatus();
-        showToast("Пожар остановлен");
+        showToast("Выполнен сброс \"Пожар\"");
         return;
       }
 
-      if (state.cabinetMode === 2) {
+      if (state.testRunning) {
         await apiRequest("/api/test/stop", { method: "POST", auth: true });
         await pollBackendStatus();
         showToast("Тест остановлен");
@@ -869,7 +948,7 @@ function bindEvents() {
 
       await apiRequest("/api/fire/on", { method: "POST", auth: true });
       await pollBackendStatus();
-      showToast("Пожар включён");
+      showToast("Выполнен пуск \"Пожар\"");
     } catch (error) {
       showToast(`Команда не выполнена: ${error.message}`);
     }
@@ -963,8 +1042,12 @@ function bindEvents() {
 
   document.getElementById("exportLogsBtn").addEventListener("click", async () => {
     try {
-      await refreshLogs();
-      const content = state.logs.join("\n");
+      const response = await apiRequest("/api/logs/download-all", {
+        method: "GET",
+        auth: true,
+        rawResponse: true
+      });
+      const content = await response.text();
       const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -1135,6 +1218,7 @@ function renderAll() {
   renderOverview();
   renderLines();
   renderBattery();
+  renderTestPanel();
   renderSystemAction();
   renderSchedule();
   renderLogs();

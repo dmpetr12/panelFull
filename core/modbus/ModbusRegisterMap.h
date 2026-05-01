@@ -29,7 +29,7 @@ enum InputRegAddress : int
     InRegBatteryState = 3,
     InRegEmergencyState = 4,     // 30005
     InRegDoorState = 5,
-    InRegReserved07 = 6,
+    InRegSystemState = 6,        // 30007
     InRegReserved08 = 7,
 
     // измерения 30009...
@@ -74,9 +74,15 @@ enum CabinetStateCode : quint16
     CabinetNormal = 0,
     CabinetFire = 1,
     CabinetTest = 2,
-    CabinetAlarm = 3,
+    CabinetAlarm = 3, // legacy / reserved
     CabinetBatteryFault = 4,
     CabinetBatteryNoCharge = 5
+};
+
+enum SystemStateCode : quint16
+{
+    SystemOk = 0,
+    SystemAlarm = 1
 };
 
 enum BatteryStateCode : quint16
@@ -129,6 +135,7 @@ bool writeCoil(BackendController *backend, int address, bool value);
 
 quint16 encodeEmergencyState(BackendController *backend);
 quint16 encodeCabinetState(BackendController *backend);
+quint16 encodeSystemState(BackendController *backend);
 quint16 encodeBatteryState(BackendController *backend);
 quint16 encodeLineType(Line *line);
 quint16 encodeLineState(Line *line);

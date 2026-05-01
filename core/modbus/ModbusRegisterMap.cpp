@@ -104,14 +104,9 @@ quint16 encodeEmergencyState(BackendController *backend)
 quint16 encodeCabinetState(BackendController *backend)
 {
     if (!backend)
-        return CabinetAlarm;
+        return CabinetNormal;
 
     const DeviceSnapshot s = backend->snapshot();
-
-    // Батарейные состояния можно держать выше обычной нормы,
-    // но ниже подтверждённого FIRE/TEST не ставим.
-    if (!s.relayStateKnown || s.relayMismatch)
-        return CabinetAlarm;
 
     if (s.fireActive)
         return CabinetFire;
@@ -119,13 +114,16 @@ quint16 encodeCabinetState(BackendController *backend)
     if (s.stepTestActive || s.singleLineTestActive || s.noMeasTestActive)
         return CabinetTest;
 
-    const quint16 batState = encodeBatteryState(backend);
-    if (batState == BatteryFault)
-        return CabinetBatteryFault;
-    if (batState == BatteryNoCharge)
-        return CabinetBatteryNoCharge;
-
     return CabinetNormal;
+}
+
+quint16 encodeSystemState(BackendController *backend)
+{
+    if (!backend)
+        return SystemAlarm;
+
+    const DeviceSnapshot s = backend->snapshot();
+    return (s.systemState == 1) ? SystemAlarm : SystemOk;
 }
 
 quint16 encodeLineType(Line *line)
@@ -205,6 +203,9 @@ quint16 readInputRegister(BackendController *backend, int address)
 
     if (address == InRegDoorState)
         return backend->doorOpen() ? DoorOpen : DoorClosed;
+
+    if (address == InRegSystemState)
+        return encodeSystemState(backend);
 
     if (address == InRegInputVoltage)
         return readScaled10(backend->inletU());

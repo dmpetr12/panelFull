@@ -48,10 +48,10 @@ Window {
     }
 
     visible: true
-    visibility: Window.FullScreen   // <--- главное !!!
-    flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint // !!! без рамки и заголовка И  всегд сверху
-    //width: 1024
-    //height: 768
+    //visibility: Window.FullScreen   // <--- главное !!!
+    //flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint // !!! без рамки и заголовка И  всегд сверху
+    width: 1024
+    height: 768
     color: "#FFFFFF"
     //maximumWidth: width
     //maximumHeight: height

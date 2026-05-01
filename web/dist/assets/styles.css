@@ -540,6 +540,11 @@ h3 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.test-counters {
+  margin-top: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .action-row {
   margin-top: 12px;
   flex-wrap: wrap;

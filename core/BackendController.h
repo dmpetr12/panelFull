@@ -38,6 +38,8 @@ public:
     bool checkPassword(const QString &password) const;
 
     QStringList readLogs(int offset, int limit) const;
+    QString readAllLogsText() const;
+    QVariantList logFilesInfo() const;
     QString exportLogsToUsb();
     QVariantMap testSummary() const;
     bool setSystemTime(qint64 msec);

@@ -60,6 +60,16 @@ bool PanelFacade::testRunning() const
     return state().value("testRunning").toBool(false);
 }
 
+int PanelFacade::testPlannedSec() const
+{
+    return state().value("testPlannedSec").toInt(0);
+}
+
+int PanelFacade::testRemainingSec() const
+{
+    return state().value("testRemainingSec").toInt(0);
+}
+
 // ===== батарея =====
 
 double PanelFacade::batteryChargePercent() const

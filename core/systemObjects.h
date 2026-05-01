@@ -49,7 +49,7 @@ class System : public QObject {
     Q_PROPERTY(QColor statusColor READ statusColor NOTIFY statusChanged)
 
 public:
-    enum Status { Ok, Failure, Test };
+    enum Status { Ok, Failure };
     Q_ENUM(Status)
 
     explicit System(QObject *parent = nullptr) : QObject(parent), m_status(Ok) {}
@@ -62,13 +62,11 @@ public:
     }
 
     QString statusText() const {
-        return m_status == Ok ? "ОК" :
-                   m_status == Failure ? "Авария" : "Тест";
+        return m_status == Ok ? "ОК" : "Авария";
     }
 
     QColor statusColor() const {
-        return m_status == Ok ? QColor("#5EC85E") :
-                   m_status == Failure ? QColor("#FF4C4C") : QColor("#FFD700");
+        return m_status == Ok ? QColor("#5EC85E") : QColor("#FF4C4C");
     }
 
 signals:
@@ -87,7 +85,7 @@ class Mode : public QObject {
     Q_PROPERTY(QColor stateColor READ stateColor NOTIFY stateChanged)
 
 public:
-    enum State { Work, Emergency, Test, Fire, Force };
+    enum State { Work, Test, Fire };
     Q_ENUM(State)
 
     explicit Mode(QObject *parent = nullptr) : QObject(parent), m_state(Work) {}
@@ -101,11 +99,9 @@ public:
 
     QString stateText() const {
         switch (m_state) {
-        case Work: return "Работа";
-        case Emergency: return "Авария";
+        case Work: return "Нормальный";
         case Test: return "Тест";
         case Fire: return "Пожар";
-        case Force: return "Диспеч";
         }
         return "Unknown";
     }
@@ -113,10 +109,8 @@ public:
     QColor stateColor() const {
         switch (m_state) {
         case Work: return QColor("#5EC85E");
-        case Emergency: return QColor("#FF4C4C");
         case Test: return QColor("#FFC700");
         case Fire: return QColor("#FF4C4C");
-        case Force: return QColor("#FFC700");
         }
         return QColor("gray");
     }

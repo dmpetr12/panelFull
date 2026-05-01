@@ -66,7 +66,7 @@ OpcUaServer::OpcUaServer(BackendController *backend, QObject *parent)
 {
 #ifdef PANEL_HAS_OPEN62541_SERVER
     m_iterateTimer = new QTimer(this);
-    m_iterateTimer->setInterval(20);
+    m_iterateTimer->setInterval(50);
     connect(m_iterateTimer, &QTimer::timeout, this, &OpcUaServer::processServerEvents);
 #endif
 }
@@ -400,7 +400,7 @@ void OpcUaServer::createAddressSpace()
                                   QStringLiteral("CabinetPanel.Cabinet.BatteryChargePercent"));
 
     addStringVariableNode(m_cabinetNodeId, QStringLiteral("CabinetPanel.Cabinet.StateText"),
-                          QStringLiteral("StateText"), QStringLiteral("State"), QStringLiteral("Работа"));
+                          QStringLiteral("StateText"), QStringLiteral("State"), QStringLiteral("Нормальный"));
     addInt32VariableNode(m_cabinetNodeId, QStringLiteral("CabinetPanel.Cabinet.StateCode"),
                          QStringLiteral("StateCode"), QStringLiteral("State Code"), 0);
     addInt32VariableNode(m_cabinetNodeId, QStringLiteral("CabinetPanel.Cabinet.SystemState"),
@@ -847,8 +847,7 @@ QString OpcUaServer::cabinetStateText(int cabinetMode) const
     switch (cabinetMode) {
     case 1: return QStringLiteral("Пожар");
     case 2: return QStringLiteral("Тест");
-    case 3: return QStringLiteral("Авария");
-    default: return QStringLiteral("Работа");
+    default: return QStringLiteral("Нормальный");
     }
 }
 

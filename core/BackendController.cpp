@@ -11,8 +11,8 @@
 #include <QSerialPort>
 #include <QStorageInfo>
 #include <QDateTime>
-#include <algorithm>
 #include <QFileInfo>
+#include <algorithm>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -42,6 +42,39 @@
 #include "logger.h"
 
 constexpr quint16 RelayBaseAddress  = 1;
+
+static QStringList availableLogFilePaths()
+{
+    QStringList files;
+    files << QStringLiteral("logs/system_log.txt");
+
+    for (int i = 1; i <= 4; ++i)
+        files << QStringLiteral("logs/system_log_%1.txt").arg(i);
+
+    QStringList existing;
+    for (const QString &path : files) {
+        if (QFileInfo::exists(path))
+            existing << path;
+    }
+
+    return existing;
+}
+
+static QStringList readLogFileLinesNewestFirst(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+        return {};
+
+    QTextStream in(&file);
+    in.setEncoding(QStringConverter::Utf8);
+    const QString all = in.readAll();
+    file.close();
+
+    QStringList lines = all.split('\n', Qt::SkipEmptyParts);
+    std::reverse(lines.begin(), lines.end());
+    return lines;
+}
 
 static QSerialPort::Parity toParity(const QString &s)
 {
@@ -324,11 +357,12 @@ void BackendController::setupSerialWatcher()
     m_bus->setPortName(portName);
     m_bus->connectDevice();
 }
-// Panel должен использовать так:
-// cabinetMode — главный статус шкафа
+// Panel/Web/Modbus должны использовать так:
+// cabinetMode — только текущий режим шкафа: 0 = Нормальный, 1 = Пожар, 2 = Тест
+// systemState — только итоговое состояние исправности: 0 = ОК, 1 = Авария
 // fireActive, stepTestActive, singleLineTestActive, noMeasTestActive — детальные подтверждённые флаги
-// relayStateKnown, relayMismatch — диагностика причины Alarm
-// fireInput, programFireActive, testRunning — только служебная/диагностическая информация, не источник итогового режима
+// relayStateKnown, relayMismatch — диагностика причины аварии
+// fireInput, programFireActive, testRunning — служебная/диагностическая информация
 DeviceSnapshot BackendController::snapshot() const
 {
     DeviceSnapshot s;
@@ -398,8 +432,6 @@ DeviceSnapshot BackendController::snapshot() const
     }
 
     if (m_lines) {
-        s.systemState = m_lines->systemState();
-
         for (int row = 0; row < m_lines->rowCount(); ++row) {
             Line *ln = m_lines->line(row);
             if (!ln)
@@ -423,6 +455,8 @@ DeviceSnapshot BackendController::snapshot() const
 
     if (m_testController) {
         s.testRunning = m_testController->testActive();
+        s.testPlannedSec = m_testController->plannedTestDurationSec();
+        s.testRemainingSec = m_testController->remainingTestDurationSec();
     }
 
     if (m_batteryController) {
@@ -435,32 +469,22 @@ DeviceSnapshot BackendController::snapshot() const
         s.battery.onBattery = m_batteryController->onBattery();
     }
 
-    if (!s.relayStateKnown || s.relayMismatch)
-        s.cabinetMode = 3; // Alarm
-    else if (s.fireActive)
+    if (s.fireActive)
         s.cabinetMode = 1; // Fire
     else if (s.stepTestActive || s.singleLineTestActive || s.noMeasTestActive)
         s.cabinetMode = 2; // Test
     else
-        s.cabinetMode = 0; // Normal
-    // Прологируем изменение статуса шкафа
+        s.cabinetMode = 0; // Duty
+
+    const bool lineAlarm = (m_lines && m_lines->systemState() == 1);
+    const bool hardwareAlarm = !s.relayStateKnown || s.relayMismatch;
+    const bool batteryAlarm = s.battery.batteryFault;
+    s.systemState = (lineAlarm || hardwareAlarm || batteryAlarm) ? 1 : 0;
+
+    // Прологируем изменение режима шкафа
     if (m_lastLoggedCabinetMode == -1) {
         m_lastLoggedCabinetMode = s.cabinetMode;
     } else if (m_lastLoggedCabinetMode != s.cabinetMode) {
-        if (s.cabinetMode == 3) {
-            QString reason;
-            if (!s.relayStateKnown)
-                reason = QStringLiteral("состояние реле неизвестно");
-            else if (s.relayMismatch)
-                reason = QStringLiteral("несовпадение желаемого и фактического состояния реле");
-            else
-                reason = QStringLiteral("неуточненная причина");
-
-            log(QStringLiteral("Шкаф вошел в режим АВАРИЯ: %1").arg(reason));
-        } else if (m_lastLoggedCabinetMode == 3) {
-            log(QStringLiteral("Шкаф вышел из режима АВАРИЯ"));
-        }
-
         m_lastLoggedCabinetMode = s.cabinetMode;
     }
 
@@ -835,63 +859,72 @@ QStringList BackendController::readLogs(int offset, int limit) const
     if (limit <= 0 || offset < 0)
         return result;
 
-    QFile f("logs/system_log.txt");
-    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
-        return result;
+    int currentOffset = offset;
+    int remaining = limit;
 
-    QTextStream in(&f);
-    in.setEncoding(QStringConverter::Utf8);
-    QString all = in.readAll();
-    f.close();
+    const QStringList files = availableLogFilePaths();
+    for (const QString &path : files) {
+        if (remaining <= 0)
+            break;
 
-    QStringList lines = all.split('\n', Qt::SkipEmptyParts);
+        const QStringList lines = readLogFileLinesNewestFirst(path);
+        if (currentOffset >= lines.size()) {
+            currentOffset -= lines.size();
+            continue;
+        }
 
-    std::reverse(lines.begin(), lines.end());
-
-    if (offset < lines.size()) {
-        int end = qMin(offset + limit, lines.size());
-        for (int i = offset; i < end; ++i)
+        const int end = qMin(currentOffset + remaining, lines.size());
+        for (int i = currentOffset; i < end; ++i)
             result << lines[i];
-    }
 
-    limit = limit - result.size();
-    offset = offset - lines.size();
-
-    if (limit <= 0)
-        return result;
-
-    if (offset < 0)
-        offset = 0;
-
-    QFile f1("logs/system_log_1.txt");
-    if (!f1.open(QIODevice::ReadOnly | QIODevice::Text))
-        return result;
-
-    QTextStream in1(&f1);
-    in1.setEncoding(QStringConverter::Utf8);
-    QString all1 = in1.readAll();
-    f1.close();
-
-    QStringList lines1 = all1.split('\n', Qt::SkipEmptyParts);
-
-    std::reverse(lines1.begin(), lines1.end());
-
-    if (offset < lines1.size()) {
-        int end = qMin(offset + limit, lines1.size());
-        for (int i = offset; i < end; ++i)
-            result << lines1[i];
+        remaining -= (end - currentOffset);
+        currentOffset = 0;
     }
 
     return result;
 }
 
+QString BackendController::readAllLogsText() const
+{
+    QStringList chunks;
+    const QStringList files = availableLogFilePaths();
+
+    for (const QString &path : files) {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+            continue;
+
+        QTextStream in(&file);
+        in.setEncoding(QStringConverter::Utf8);
+        const QString content = in.readAll();
+        file.close();
+
+        const QString name = QFileInfo(path).fileName();
+        chunks << QStringLiteral("===== %1 =====\n%2").arg(name, content);
+    }
+
+    return chunks.join(QStringLiteral("\n\n"));
+}
+
+QVariantList BackendController::logFilesInfo() const
+{
+    QVariantList list;
+    const QStringList files = availableLogFilePaths();
+    for (const QString &path : files) {
+        QFileInfo fi(path);
+        QVariantMap item;
+        item["name"] = fi.fileName();
+        item["path"] = path;
+        item["size"] = fi.exists() ? fi.size() : 0;
+        list << item;
+    }
+    return list;
+}
+
 
 QString BackendController::exportLogsToUsb()
 {
-    const QStringList logFiles = {
-        QStringLiteral("logs/system_log.txt"),
-        QStringLiteral("logs/system_log_1.txt")
-    };
+    const QStringList logFiles = availableLogFilePaths();
 
     QStorageInfo target;
     const auto volumes = QStorageInfo::mountedVolumes();
@@ -952,7 +985,7 @@ QString BackendController::exportLogsToUsb()
         }
 
         const QString destPath =
-            QDir(destDirPath).filePath(fileName);
+            QDir(destDirPath).filePath(QFileInfo(fileName).fileName());
 
         if (QFile::exists(destPath))
             QFile::remove(destPath);
@@ -1393,6 +1426,8 @@ QVariantMap BackendController::webState() const
     out["cabinetMode"] = s.cabinetMode;
     out["systemState"] = s.systemState;
     out["testRunning"] = s.testRunning;
+    out["testPlannedSec"] = s.testPlannedSec;
+    out["testRemainingSec"] = s.testRemainingSec;
     out["busConnected"] = s.busConnected;
     out["doorOpen"] = s.doorOpen;
 

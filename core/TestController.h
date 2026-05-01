@@ -22,6 +22,8 @@ class TestController : public QObject
     Q_PROPERTY(QDateTime lastLongSystemTest READ lastLongSystemTest NOTIFY lastLongSystemTestChanged)
     Q_PROPERTY(TestKind currentTestKind READ currentTestKind NOTIFY currentTestKindChanged)
     Q_PROPERTY(int measuredLine READ measuredLine NOTIFY measuredLineChanged)
+    Q_PROPERTY(int plannedTestDurationSec READ plannedTestDurationSec NOTIFY testTimingChanged)
+    Q_PROPERTY(int remainingTestDurationSec READ remainingTestDurationSec NOTIFY testTimingChanged)
 
 public:
     explicit TestController(QObject *parent = nullptr);
@@ -44,6 +46,8 @@ public:
     QDateTime lastLongSystemTest() const { return m_lastLongSystemTest; }
     bool lastLongTestResult() const { return m_lastLongSystemTestOk; }
     int measuredLine() const { return m_measuredLine; }
+    int plannedTestDurationSec() const { return m_plannedTestDurationSec; }
+    int remainingTestDurationSec() const;
 
     Q_INVOKABLE void startTestOperator(int lineIndex, int sec);
     Q_INVOKABLE bool startTestScheduleAll(int sec);
@@ -62,6 +66,7 @@ signals:
     void testSourceChanged();
     void lastLongSystemTestChanged();
     void currentTestKindChanged();
+    void testTimingChanged();
 
 private:
     enum class Active { None, Single, All, NoMeas };
@@ -95,6 +100,8 @@ private:
     void loadMaintenance();
 
     void setCurrentTestKind(TestKind k);
+    void setTestTiming(int plannedDurationSec);
+    void clearTestTiming();
 
 private:
     LinesModel    *m_model = nullptr;
@@ -129,6 +136,8 @@ private:
     QDateTime m_lastLongSystemTest;
     bool      m_lastLongSystemTestOk = true;
     TestKind  m_currentTestKind = TestKind::None;
+    int       m_plannedTestDurationSec = 0;
+    QDateTime m_testEndsAt;
 };
 
 #endif // TESTCONTROLLER_H

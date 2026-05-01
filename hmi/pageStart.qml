@@ -10,28 +10,13 @@ Rectangle {
     height: stackViewList.height
 
     function recomputeMode() {
-        btnStopTestVsb = false
-        btnResetForcedFireVsb = false
-
-        if (panel.cabinetMode === 3) {   // Alarm
-            appMode.state = Mode.Emergency
-            return
-        }
-
         if (panel.cabinetMode === 1) {   // Fire
             appMode.state = Mode.Fire
-
-            // Кнопка доступна только для программного пожара
-            if (panel.programFireActive && !panel.fireInput && unlocked)
-                btnResetForcedFireVsb = true
-
             return
         }
 
         if (panel.cabinetMode === 2) {   // Test
             appMode.state = Mode.Test
-            if (unlocked)
-                btnStopTestVsb = true
             return
         }
 
@@ -39,13 +24,29 @@ Rectangle {
     }
 
     function recomputeSystemState() {
-        sys.status = (panel.systemState === 2) ? System.Test
-                  : (panel.systemState === 1) ? System.Failure
-                  : System.Ok
+        sys.status = panel.systemState === 1 ? System.Failure : System.Ok
+    }
+
+    function actionButtonVisible() {
+        return unlocked
+    }
+
+    function actionButtonText() {
+        if (panel.testRunning)
+            return "ОСТАНОВИТЬ ТЕСТ"
+        if (panel.fireActive || panel.programFireActive)
+            return "СБРОС \"ПОЖАР\""
+        return "ПУСК \"ПОЖАР\""
+    }
+
+    function actionButtonColor() {
+        if (panel.testRunning)
+            return "#FFC700"
+        if (panel.fireActive)
+            return "#FF4C4C"
+        return "#E2951A"
     }
     property bool lastBackendConnected: true
-    property bool btnStopTestVsb: false
-    property bool btnResetForcedFireVsb: false
 
     Connections {
         target: panel
@@ -96,13 +97,13 @@ Rectangle {
                     System { id: sys }
                     Mode { id: appMode }
 
-                    Text {
-                        text: "СИСТЕМА"
-                        font.pixelSize: 40
-                        color: "black"
-                        font.bold: true
-                        anchors.horizontalCenter: parent.horizontalCenter
-                    }
+                    // Text {
+                    //     text: "СИСТЕМА"
+                    //     font.pixelSize: 40
+                    //     color: "black"
+                    //     font.bold: true
+                    //     anchors.horizontalCenter: parent.horizontalCenter
+                    // }
 
                     RowLayout {
                         Layout.preferredHeight: 330
@@ -121,17 +122,19 @@ Rectangle {
                         Text {
                             text: "Режим: "
                             color: "black"
-                            font.pixelSize: 40
+                            font.pixelSize: 36
                             Layout.alignment: Qt.AlignVCenter
+                            Layout.preferredWidth: 170
                         }
 
                         Text {
                             color: appMode.stateColor
                             text: appMode.stateText
-                            font.pixelSize: 40
+                            font.pixelSize: 28
                             Layout.alignment: Qt.AlignVCenter
                             Layout.fillWidth: true
                             horizontalAlignment: Text.AlignRight
+                            //elide: Text.ElideRight
                         }
                     }
 
@@ -152,18 +155,20 @@ Rectangle {
                         Text {
                             text: "Система: "
                             color: "black"
-                            font.pixelSize: 40
+                            font.pixelSize: 36
                             Layout.alignment: Qt.AlignVCenter
+                            Layout.preferredWidth: 170
                         }
 
                         Text {
                             id: sysText
                             text: sys.statusText
                             color: sys.statusColor
-                            font.pixelSize: 40
+                            font.pixelSize: 28
                             Layout.alignment: Qt.AlignVCenter
                             Layout.fillWidth: true
                             horizontalAlignment: Text.AlignRight
+                            elide: Text.ElideRight
                         }
                     }
 
@@ -245,7 +250,8 @@ Rectangle {
                                     height: 24
                                     radius: 12
                                     border.color: "black"
-                                    color: modelData.status === 0 ? "#5EC85E"
+                                    color: !panel.relayStateKnown ? "#BDBDBD"
+                                          : modelData.status === 0 ? "#5EC85E"
                                           : modelData.status === 1 ? "#FF4C4C"
                                           : modelData.status === 2 ? "#FFC700"
                                           : "blue"
@@ -273,10 +279,12 @@ Rectangle {
                                     width: 80
                                     height: 38
                                     radius: 3
-                                    color: (modelData.lineState === 1) ? "#FFC700" : "lightgrey"
+                                    color: !panel.relayStateKnown ? "#E7E7E7"
+                                          : (modelData.lineState === 1) ? "#FFC700" : "lightgrey"
 
                                     Text {
-                                        text: (modelData.lineState === 1) ? "вкл  " : "выкл"
+                                        text: !panel.relayStateKnown ? "—"
+                                             : (modelData.lineState === 1) ? "вкл  " : "выкл"
                                         color: "black"
                                         font.pixelSize: 30
                                         anchors.centerIn: parent
@@ -297,11 +305,13 @@ Rectangle {
                                 }
 
                                 Text {
-                                    text: modelData.status === 0 ? "OK"
+                                    text: !panel.relayStateKnown ? "—"
+                                         : modelData.status === 0 ? "OK"
                                          : modelData.status === 1 ? "АВАРИЯ"
                                          : modelData.status === 2 ? "ТЕСТ"
                                          : " ? "
-                                    color: modelData.status === 0 ? "#5EC85E"
+                                    color: !panel.relayStateKnown ? "#808080"
+                                          : modelData.status === 0 ? "#5EC85E"
                                           : modelData.status === 1 ? "#FF4C4C"
                                           : modelData.status === 2 ? "#FFC700"
                                           : "blue"
@@ -385,69 +395,39 @@ Rectangle {
                     height: 100
                     color: "transparent"
                     Rectangle {
-                        id: btnResetForcedFire
-                        visible: btnResetForcedFireVsb
+                        id: btnAction
+                        visible: actionButtonVisible()
                         width: 300
                         height: 100
                         radius: 20
-                        color: "#FF4C4C"
+                        color: actionMouse.pressed ? "black" : actionButtonColor()
 
                         Text {
                             anchors.centerIn: parent
-                            text: "СНЯТЬ ПОЖАР"
+                            text: actionButtonText()
                             color: "white"
                             font.bold: true
-                            font.pixelSize: 34
+                            font.pixelSize: 32
+                            horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.WordWrap
+                            width: parent.width - 20
                         }
 
                         MouseArea {
+                            id: actionMouse
                             anchors.fill: parent
                             hoverEnabled: true
-                            onEntered: btnResetForcedFire.color = "#D63B3B"
-                            onExited: btnResetForcedFire.color = "#FF4C4C"
-                            onPressed: {
-                                if (btnResetForcedFireVsb)
-                                    btnResetForcedFire.color = "black"
-                            }
-                            onReleased: btnResetForcedFire.color = "#FF4C4C"
                             onClicked: {
-                                if (btnResetForcedFireVsb) {
-                                    panel.setProgramFire(false)
-                                }
-                            }
-                        }
-                    }
+                                if (!unlocked)
+                                    return
 
-                    Rectangle {
-                        id: btnStopTest
-                        visible: (btnStopTestVsb )
-                        width: 300
-                        height: 100
-                        radius: 20
-                        color: "#FFC700"
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: "Стоп Тест"
-                            color: "white"
-                            font.bold: true
-                            font.pixelSize: 40
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            onEntered: btnStopTest.color = "#FFC700"
-                            onExited: btnStopTest.color = "#FFC700"
-                            onPressed: {
-                                if (btnStopTestVsb ) {
-                                    btnStopTest.color = "black"
-                                }
-                            }
-                            onReleased: btnStopTest.color = "#FFC700"
-                            onClicked: {
-                                if (btnStopTestVsb && unlocked)
+                                if (panel.testRunning) {
                                     panel.stopCurrentTest()
+                                } else if (panel.fireActive || panel.programFireActive) {
+                                    panel.setProgramFire(false)
+                                } else {
+                                    panel.setProgramFire(true)
+                                }
                             }
                         }
                     }
