@@ -174,6 +174,11 @@ private:
     bool mapLineToInputBit(int lineIndex, int &moduleIndex, int &inputBit) const;
     void syncLineStatesFromActual();
     void checkNormalRelayConsistency();
+    void emitConfirmedStateChanges(bool prevConfirmedFire,
+                                   bool prevConfirmedStepTestActive,
+                                   int prevConfirmedStepTestLine,
+                                   bool prevConfirmedSingleTestActive,
+                                   int prevConfirmedSingleTestLine);
 
     static inline bool bit(quint8 v, int b)
     {

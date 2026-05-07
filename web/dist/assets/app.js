@@ -175,7 +175,6 @@ const refs = {
   lineMeasuredPowerDisplay: document.getElementById("lineMeasuredPowerDisplay"),
   lineVoltageDisplay: document.getElementById("lineVoltageDisplay"),
   lineCurrentDisplay: document.getElementById("lineCurrentDisplay"),
-  lineStatusDisplay: document.getElementById("lineStatusDisplay"),
   runLineTestBtn: document.getElementById("runLineTestBtn"),
   applyMeasuredPowerBtn: document.getElementById("applyMeasuredPowerBtn"),
   saveLineBtn: document.getElementById("saveLineBtn")
@@ -262,6 +261,68 @@ function formatDurationSeconds(totalSeconds) {
   }
 
   return `${pad(minutes)}:${pad(seconds)}`;
+}
+
+function isLineTestRunning(line, index) {
+  if (!line || index === null || index === undefined) {
+    return false;
+  }
+
+  return line.status === 2;
+}
+
+function clearLineModalInputs() {
+  refs.lineNameInput.value = "";
+  refs.lineBackendPower.value = "—";
+  refs.lineManualPower.value = "";
+  refs.lineToleranceInput.value = "";
+  refs.lineModeInput.value = "1";
+  refs.lineMeasuredPowerDisplay.textContent = "—";
+  refs.lineVoltageDisplay.textContent = "—";
+  refs.lineCurrentDisplay.textContent = "—";
+  refs.runLineTestBtn.textContent = "Запуск теста";
+  refs.runLineTestBtn.className = "action-btn warning";
+}
+
+function renderLineModal(index = state.selectedLineIndex) {
+  if (index === null || index === undefined || !lineModal.classList.contains("open")) {
+    return;
+  }
+
+  const line = state.lines[index];
+  if (!line) {
+    return;
+  }
+
+  const lineTestRunning = isLineTestRunning(line, index);
+
+  refs.lineModalTitle.textContent = `Настройка линии ${index + 1}`;
+  refs.lineNameInput.value = line.description;
+  refs.lineBackendPower.value = typeof line.mpower === "number" && line.mpower > 0 ? `${line.mpower.toFixed(1)} Вт` : "—";
+  refs.lineToleranceInput.value = typeof line.tolerance === "number" ? String(line.tolerance) : "";
+  refs.lineModeInput.value = String(line.mode);
+  refs.lineMeasuredPowerDisplay.textContent = typeof line.power === "number" && line.power > 0 ? `${line.power.toFixed(1)} Вт` : "—";
+  refs.lineVoltageDisplay.textContent = typeof line.voltage === "number" && line.voltage > 0 ? `${line.voltage.toFixed(0)} В` : "—";
+  refs.lineCurrentDisplay.textContent = typeof line.current === "number" && line.current > 0 ? `${line.current.toFixed(3)} А` : "—";
+  refs.runLineTestBtn.textContent = lineTestRunning ? "Стоп теста" : "Запуск теста";
+  refs.runLineTestBtn.className = lineTestRunning ? "action-btn danger" : "action-btn warning";
+}
+
+async function stopLineTestIfNeeded(index) {
+  const line = index === null || index === undefined ? null : state.lines[index];
+  if (!line || line.status !== 2) {
+    return;
+  }
+
+  try {
+    await apiRequest(`/api/lines/${index}/test/stop`, {
+      method: "POST",
+      auth: true
+    });
+    await pollBackendStatus();
+  } catch (error) {
+    // Закрытие окна не должно блокироваться из-за ошибки остановки теста.
+  }
 }
 
 function showToast(message) {
@@ -796,24 +857,16 @@ function renderLineSettingsList() {
 
 function openLineModal(index) {
   state.selectedLineIndex = index;
-  const line = state.lines[index];
-  const status = getLineStatusMeta(line.status);
-
-  refs.lineModalTitle.textContent = `Настройка линии ${index + 1}`;
-  refs.lineNameInput.value = line.description;
-  refs.lineBackendPower.value = typeof line.mpower === "number" && line.mpower > 0 ? `${line.mpower.toFixed(1)} Вт` : "—";
-  refs.lineManualPower.value = typeof line.power === "number" && line.power > 0 ? line.power : "";
-  refs.lineToleranceInput.value = line.tolerance;
-  refs.lineModeInput.value = String(line.mode);
-  refs.lineMeasuredPowerDisplay.textContent = typeof line.power === "number" && line.power > 0 ? `${line.power.toFixed(1)} Вт` : "—";
-  refs.lineVoltageDisplay.textContent = typeof line.voltage === "number" && line.voltage > 0 ? `${line.voltage.toFixed(0)} В` : "—";
-  refs.lineCurrentDisplay.textContent = typeof line.current === "number" && line.current > 0 ? `${line.current.toFixed(3)} А` : "—";
-  refs.lineStatusDisplay.textContent = line.status === 3 ? "—" : status.text;
+  refs.lineManualPower.value = "";
   lineModal.classList.add("open");
+  renderLineModal(index);
 }
 
-function closeLineModal() {
+async function closeLineModal() {
+  const index = state.selectedLineIndex;
+  await stopLineTestIfNeeded(index);
   lineModal.classList.remove("open");
+  clearLineModalInputs();
   state.selectedLineIndex = null;
 }
 
@@ -1136,10 +1189,12 @@ function bindEvents() {
     openLineModal(Number(button.dataset.editLine));
   });
 
-  refs.closeLineModal.addEventListener("click", closeLineModal);
+  refs.closeLineModal.addEventListener("click", () => {
+    void closeLineModal();
+  });
   lineModal.addEventListener("click", (event) => {
     if (event.target === lineModal) {
-      closeLineModal();
+      void closeLineModal();
     }
   });
 
@@ -1148,17 +1203,30 @@ function bindEvents() {
       return;
     }
 
+    const index = state.selectedLineIndex;
+    const line = state.lines[index];
+    const lineTestRunning = isLineTestRunning(line, index);
+
     try {
-      await apiRequest(`/api/lines/${state.selectedLineIndex}/test/start`, {
-        method: "POST",
-        auth: true,
-        body: { durationSec: 60 }
-      });
+      if (lineTestRunning) {
+        await apiRequest(`/api/lines/${index}/test/stop`, {
+          method: "POST",
+          auth: true
+        });
+      } else {
+        await apiRequest(`/api/lines/${index}/test/start`, {
+          method: "POST",
+          auth: true,
+          body: { durationSec: 60 }
+        });
+      }
       await pollBackendStatus();
-      openLineModal(state.selectedLineIndex);
-      showToast(`Тест линии ${state.selectedLineIndex + 1} запущен`);
+      renderLineModal(index);
+      showToast(lineTestRunning
+        ? `Тест линии ${index + 1} остановлен`
+        : `Тест линии ${index + 1} запущен`);
     } catch (error) {
-      showToast(`Не удалось запустить тест линии: ${error.message}`);
+      showToast(`Не удалось выполнить команду теста линии: ${error.message}`);
     }
   });
 
@@ -1168,6 +1236,11 @@ function bindEvents() {
     }
 
     const line = state.lines[state.selectedLineIndex];
+    if (typeof line.power !== "number" || line.power <= 0) {
+      showToast("Нет измеренной мощности для записи");
+      return;
+    }
+
     try {
       await apiRequest(`/api/lines/${state.selectedLineIndex}/update`, {
         method: "POST",
@@ -1177,7 +1250,7 @@ function bindEvents() {
         }
       });
       await pollBackendStatus();
-      openLineModal(state.selectedLineIndex);
+      renderLineModal(state.selectedLineIndex);
       showToast(`Измеренное значение записано в мощность линии ${state.selectedLineIndex + 1}`);
     } catch (error) {
       showToast(`Не удалось записать измеренное: ${error.message}`);
@@ -1191,23 +1264,56 @@ function bindEvents() {
 
     const index = state.selectedLineIndex;
     const line = state.lines[index];
+    const manualPowerValue = refs.lineManualPower.value.trim();
+    const payload = {
+      description: refs.lineNameInput.value.trim() || line.description,
+      tolerance: Number(refs.lineToleranceInput.value),
+      mode: Number(refs.lineModeInput.value)
+    };
+
+    if (manualPowerValue !== "") {
+      payload.mpower = Number(manualPowerValue);
+    }
+
+    if (!Number.isFinite(payload.tolerance)) {
+      payload.tolerance = typeof line.tolerance === "number" ? line.tolerance : 0;
+    }
+
+    try {
+      await apiRequest(`/api/lines/${index}/update`, {
+        method: "POST",
+        auth: true,
+        body: payload
+      });
+      await pollBackendStatus();
+      await closeLineModal();
+      showToast(`Линия ${index + 1} сохранена`);
+    } catch (error) {
+      showToast(`Не удалось сохранить линию: ${error.message}`);
+    }
+  });
+
+  refs.lineModeInput.addEventListener("change", async () => {
+    if (state.selectedLineIndex === null) {
+      return;
+    }
+
+    const index = state.selectedLineIndex;
 
     try {
       await apiRequest(`/api/lines/${index}/update`, {
         method: "POST",
         auth: true,
         body: {
-          description: refs.lineNameInput.value.trim() || line.description,
-          power: Number(refs.lineManualPower.value) || 0,
-          tolerance: Number(refs.lineToleranceInput.value) || 0,
           mode: Number(refs.lineModeInput.value)
         }
       });
       await pollBackendStatus();
-      closeLineModal();
-      showToast(`Линия ${index + 1} сохранена`);
+      renderLineModal(index);
+      showToast(`Режим линии ${index + 1} сохранён`);
     } catch (error) {
-      showToast(`Не удалось сохранить линию: ${error.message}`);
+      refs.lineModeInput.value = String(state.lines[index].mode);
+      showToast(`Не удалось сохранить режим линии: ${error.message}`);
     }
   });
 

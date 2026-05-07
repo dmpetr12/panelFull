@@ -138,16 +138,22 @@ void LineIoManager::onRelaysUpdated(int moduleIndex, quint8 bits)
     if (moduleIndex < 0 || moduleIndex >= m_relayModuleCount)
         return;
 
+    const bool prevConfirmedFire = confirmedFireActive();
+    const bool prevConfirmedStepTestActive = confirmedStepTestActive();
+    const int prevConfirmedStepTestLine = confirmedStepTestLine();
+    const bool prevConfirmedSingleTestActive = confirmedSingleLineTestActive();
+    const int prevConfirmedSingleTestLine = confirmedSingleLineTestLine();
+
     m_actualRelays[moduleIndex] = bits;
     m_actualRelaysKnown[moduleIndex] = true;
 
     syncLineStatesFromActual();
 
-    emit fireChanged(confirmedFireActive());
-    emit stepTestActiveChanged(confirmedStepTestActive());
-    emit stepTestLineChanged(confirmedStepTestLine());
-    emit singleLineTestActiveChanged(confirmedSingleLineTestActive());
-    emit singleLineTestLineChanged(confirmedSingleLineTestLine());
+    emitConfirmedStateChanges(prevConfirmedFire,
+                              prevConfirmedStepTestActive,
+                              prevConfirmedStepTestLine,
+                              prevConfirmedSingleTestActive,
+                              prevConfirmedSingleTestLine);
 }
 
 void LineIoManager::onBusOnline()
@@ -166,12 +172,52 @@ void LineIoManager::onBusOffline(const QString &reason)
 {
     Q_UNUSED(reason);
 
+    const bool prevConfirmedFire = confirmedFireActive();
+    const bool prevConfirmedStepTestActive = confirmedStepTestActive();
+    const int prevConfirmedStepTestLine = confirmedStepTestLine();
+    const bool prevConfirmedSingleTestActive = confirmedSingleLineTestActive();
+    const int prevConfirmedSingleTestLine = confirmedSingleLineTestLine();
+
     for (int i = 0; i < m_relayModuleCount; ++i){
         m_lastSentRelays[i] = 0xFF;
         m_actualRelaysKnown[i] = false;
         m_normalMismatchCount[i] = 0;
         m_normalRepairAttempts[i] = 0;
     }
+
+    emitConfirmedStateChanges(prevConfirmedFire,
+                              prevConfirmedStepTestActive,
+                              prevConfirmedStepTestLine,
+                              prevConfirmedSingleTestActive,
+                              prevConfirmedSingleTestLine);
+}
+
+void LineIoManager::emitConfirmedStateChanges(bool prevConfirmedFire,
+                                              bool prevConfirmedStepTestActive,
+                                              int prevConfirmedStepTestLine,
+                                              bool prevConfirmedSingleTestActive,
+                                              int prevConfirmedSingleTestLine)
+{
+    const bool newConfirmedFire = confirmedFireActive();
+    const bool newConfirmedStepTestActive = confirmedStepTestActive();
+    const int newConfirmedStepTestLine = confirmedStepTestLine();
+    const bool newConfirmedSingleTestActive = confirmedSingleLineTestActive();
+    const int newConfirmedSingleTestLine = confirmedSingleLineTestLine();
+
+    if (prevConfirmedFire != newConfirmedFire)
+        emit fireChanged(newConfirmedFire);
+
+    if (prevConfirmedStepTestActive != newConfirmedStepTestActive)
+        emit stepTestActiveChanged(newConfirmedStepTestActive);
+
+    if (prevConfirmedStepTestLine != newConfirmedStepTestLine)
+        emit stepTestLineChanged(newConfirmedStepTestLine);
+
+    if (prevConfirmedSingleTestActive != newConfirmedSingleTestActive)
+        emit singleLineTestActiveChanged(newConfirmedSingleTestActive);
+
+    if (prevConfirmedSingleTestLine != newConfirmedSingleTestLine)
+        emit singleLineTestLineChanged(newConfirmedSingleTestLine);
 }
 
 void LineIoManager::updateFireFromModule0(quint8 bits0)
