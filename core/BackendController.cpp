@@ -477,7 +477,8 @@ DeviceSnapshot BackendController::snapshot() const
         s.cabinetMode = 0; // Duty
 
     const bool lineAlarm = (m_lines && m_lines->systemState() == 1);
-    const bool hardwareAlarm = !s.relayStateKnown || s.relayMismatch;
+    const bool relayTransitionInProgress = m_lineIoManager && m_lineIoManager->relayTransitionInProgress();
+    const bool hardwareAlarm = (!s.relayStateKnown || s.relayMismatch) && !relayTransitionInProgress;
     const bool batteryAlarm = s.battery.batteryFault;
     s.systemState = (lineAlarm || hardwareAlarm || batteryAlarm) ? 1 : 0;
 

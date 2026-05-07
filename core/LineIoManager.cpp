@@ -662,6 +662,7 @@ void LineIoManager::applyModuleIfChanged(int moduleIndex, bool force)
 
     m_bus->setModuleRelaysBits(moduleIndex, desired);
     m_lastSentRelays[moduleIndex] = desired;
+    m_lastRelayApplyMsec = QDateTime::currentMSecsSinceEpoch();
 }
 
 bool LineIoManager::mapLineToRelayBits(int lineIndex, int &moduleIndex, int &bitMeas, int &bitWork) const
@@ -881,6 +882,14 @@ bool LineIoManager::confirmedStepTestActive() const
 int LineIoManager::confirmedStepTestLine() const
 {
     return confirmedStepTestActive() ? m_stepTestLine : -1;
+}
+
+bool LineIoManager::relayTransitionInProgress() const
+{
+    if (m_lastRelayApplyMsec <= 0)
+        return false;
+
+    return (QDateTime::currentMSecsSinceEpoch() - m_lastRelayApplyMsec) < m_transitionGuardMs;
 }
 
 LineIoManager::ConfirmedMode LineIoManager::confirmedMode() const

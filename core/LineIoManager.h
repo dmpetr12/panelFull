@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QTimer>
+#include <QDateTime>
 #include <QtGlobal>
 #include <cstdint>
 
@@ -93,6 +94,7 @@ public:
 
     bool confirmedLineOn(int lineIndex) const;
     bool confirmedLineStateKnown(int lineIndex) const;
+    bool relayTransitionInProgress() const;
 
 signals:
     void fireChanged(bool active);
@@ -229,6 +231,8 @@ private:
     QTimer *m_normalWatchdog = nullptr;
 
     int m_relayModuleCount = 0;
+    qint64 m_lastRelayApplyMsec = 0;
+    int m_transitionGuardMs = 1500;
 
     enum class TwoStepKind { None, Step1, Step2, Step3 };
     TwoStepKind m_twoStepKind = TwoStepKind::None;
