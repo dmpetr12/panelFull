@@ -37,11 +37,7 @@ bool WebApiServer::start(quint16 port, const QString &webRoot)
         return false;
     }
 
-    if (!m_server.bind(tcpServer)) {
-        log(QStringLiteral( "QHttpServer bind failed"));
-        tcpServer->deleteLater();
-        return false;
-    }
+    m_server.bind(tcpServer);
 
     log(QStringLiteral("WebApiServer started on port %1 webRoot %2")
                         .arg(port) .arg(webRoot));
